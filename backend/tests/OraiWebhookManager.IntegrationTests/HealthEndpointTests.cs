@@ -6,11 +6,11 @@ using OraiWebhookManager.Api.Models;
 
 namespace OraiWebhookManager.IntegrationTests;
 
-public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public class HealthEndpointTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly HttpClient _client;
 
-    public HealthEndpointTests(WebApplicationFactory<Program> factory)
+    public HealthEndpointTests(CustomWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
     }
