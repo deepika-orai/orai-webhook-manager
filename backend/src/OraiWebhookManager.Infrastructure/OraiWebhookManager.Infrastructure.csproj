@@ -23,4 +23,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="OraiWebhookManager.UnitTests" />
+    <InternalsVisibleTo Include="OraiWebhookManager.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

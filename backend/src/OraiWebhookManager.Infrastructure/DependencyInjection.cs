@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddSingleton<IMetaWebhookParser, MetaWebhookParser>();
         services.AddScoped<IWebhookInboxRepository, WebhookInboxRepository>();
         services.AddScoped<IWebhookProcessorRepository, WebhookProcessorRepository>();
+        services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddSingleton<ICacheInvalidator, CacheInvalidationService>();
 
         // Activity Buffer Singleton & Hosted Service

@@ -76,3 +76,12 @@ public interface ICacheInvalidator
 {
     Task PublishEndpointInvalidationAsync(byte[] keyHash, CancellationToken cancellationToken = default);
 }
+
+public interface IDashboardRepository
+{
+    Task<DashboardSummaryDto> GetSummaryAsync(Guid tenantId, CancellationToken cancellationToken = default);
+    Task<PagedResult<MessageListItemDto>> GetMessagesAsync(Guid tenantId, MessageFilterParams filter, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MessageStatusEventDto>> GetMessageEventsAsync(Guid tenantId, Guid messageId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WebhookEndpointDto>> GetWebhookEndpointsAsync(Guid tenantId, CancellationToken cancellationToken = default);
+    Task<bool> ValidateTenantActiveAsync(Guid tenantId, CancellationToken cancellationToken = default);
+}

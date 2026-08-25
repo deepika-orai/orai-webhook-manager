@@ -7,10 +7,12 @@ namespace OraiWebhookManager.Api.Services;
 public class CurrentUserContext : ICurrentUserContext
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IWebHostEnvironment _environment;
 
-    public CurrentUserContext(IHttpContextAccessor httpContextAccessor)
+    public CurrentUserContext(IHttpContextAccessor httpContextAccessor, IWebHostEnvironment environment)
     {
         _httpContextAccessor = httpContextAccessor;
+        _environment = environment;
     }
 
     public Guid? TenantId
@@ -18,8 +20,13 @@ public class CurrentUserContext : ICurrentUserContext
         get
         {
             var user = _httpContextAccessor.HttpContext?.User;
-            var tenantClaim = user?.FindFirst("tenant_id")?.Value
-                ?? _httpContextAccessor.HttpContext?.Request.Headers["X-Tenant-Id"].FirstOrDefault();
+            var tenantClaim = user?.FindFirst("tenant_id")?.Value;
+
+            // In Development ONLY, allow fallback to X-Tenant-Id header for MVP testing
+            if (string.IsNullOrEmpty(tenantClaim) && _environment.IsDevelopment())
+            {
+                tenantClaim = _httpContextAccessor.HttpContext?.Request.Headers["X-Tenant-Id"].FirstOrDefault();
+            }
 
             return Guid.TryParse(tenantClaim, out var parsed) ? parsed : null;
         }
