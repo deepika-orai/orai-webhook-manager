@@ -95,6 +95,17 @@ dotnet run --project backend\src\OraiWebhookManager.Api\OraiWebhookManager.Api.c
 - Health Check Endpoint: `GET http://localhost:5135/api/health` or `https://localhost:7036/api/health`
 - Scalar API Reference (Dev): `GET http://localhost:5135/scalar/v1`
 
+#### Platform Super Admin Bootstrap
+```powershell
+# Interactive hidden console password prompt (Recommended for manual setup):
+dotnet run --project backend\src\OraiWebhookManager.Api\OraiWebhookManager.Api.csproj -- --bootstrap-admin --email admin@orai.io --name "Super Admin"
+
+# Automated / CI non-interactive execution (Password provided via environment variable):
+$env:BOOTSTRAP_ADMIN_PASSWORD="YourSecurePasswordHere!"
+dotnet run --project backend\src\OraiWebhookManager.Api\OraiWebhookManager.Api.csproj -- --bootstrap-admin --email admin@orai.io
+```
+*(Note: Passwords must NEVER be passed as CLI arguments, printed to console, or recorded in logs).*
+
 ---
 
 ### Frontend (Next.js + TypeScript)

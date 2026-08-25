@@ -50,6 +50,7 @@ public class MessagesController : ControllerBase
     [ProducesResponseType(typeof(IReadOnlyList<MessageStatusEventDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetMessageEvents(
         [FromRoute] Guid id,
         CancellationToken cancellationToken)
@@ -67,6 +68,11 @@ public class MessagesController : ControllerBase
         }
 
         var events = await _dashboardRepository.GetMessageEventsAsync(tenantId.Value, id, cancellationToken);
+        if (events == null)
+        {
+            return NotFound(new { error = "Message not found." });
+        }
+
         return Ok(events);
     }
 }

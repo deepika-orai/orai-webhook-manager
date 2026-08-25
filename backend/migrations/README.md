@@ -11,14 +11,15 @@ backend/
 ├── migrations/                                           # Deployment-ready idempotent SQL scripts
 │   ├── README.md                                         # This documentation
 │   ├── 001_phase2_postgresql_foundation.sql              # Initial Phase 2 core multi-tenant schema
-│   ├── 002_<change_name>.sql                             # Future numbered schema migration
-│   └── 003_<change_name>.sql                             # Future numbered schema migration
+│   └── 002_auth_super_admin_onboarding.sql               # Phase 4 Auth, auth_version and must_change_password
 └── src/
     └── OraiWebhookManager.Infrastructure/
         └── Persistence/
             └── Migrations/                               # EF Core migration C# source files & snapshot
                 ├── 20260825073218_Phase2_PostgreSqlFoundation.cs
                 ├── 20260825073218_Phase2_PostgreSqlFoundation.Designer.cs
+                ├── 20260825105204_Phase4_AuthSuperAdminOnboarding.cs
+                ├── 20260825105204_Phase4_AuthSuperAdminOnboarding.Designer.cs
                 └── AppDbContextModelSnapshot.cs
 ```
 
@@ -44,9 +45,8 @@ backend/
 
 ## 3. Migration Sequence & Chronology
 
-SQL scripts are named using a zero-padded chronological 3-digit prefix:
 - `001_phase2_postgresql_foundation.sql`: Core multi-tenant foundation (tenants, users, tenant_memberships, webhook_endpoints, webhook_inbox, messages, message_status_events, audit_logs).
-- `002_<name>.sql`: Subsequent forward migration.
+- `002_auth_super_admin_onboarding.sql`: Phase 4 Authentication, auth_version, must_change_password column, Super Admin and client onboarding foundation.
 
 ---
 

@@ -89,6 +89,52 @@ public class DashboardRepositoryAndModelTests
     }
 
     [Fact]
+    public void CurrentUserContext_PlatformAdmin_InProduction_ResolvesXTenantIdHeader_ForInspection()
+    {
+        var inspectedTenant = Guid.NewGuid();
+        var claims = new[]
+        {
+            new Claim("is_platform_admin", "true"),
+            new Claim(ClaimTypes.Role, "PlatformAdmin")
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        var user = new ClaimsPrincipal(identity);
+
+        var httpContext = new DefaultHttpContext { User = user };
+        httpContext.Request.Headers["X-Tenant-Id"] = inspectedTenant.ToString();
+
+        var accessor = new FakeHttpContextAccessor(httpContext);
+        var env = new FakeWebHostEnvironment("Production");
+
+        var context = new CurrentUserContext(accessor, env);
+
+        context.TenantId.Should().Be(inspectedTenant);
+        context.IsPlatformAdmin.Should().BeTrue();
+    }
+
+    [Fact]
+    public void CurrentUserContext_PlatformAdmin_WithoutXTenantIdHeader_ReturnsNullTenant()
+    {
+        var claims = new[]
+        {
+            new Claim("is_platform_admin", "true"),
+            new Claim(ClaimTypes.Role, "PlatformAdmin")
+        };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        var user = new ClaimsPrincipal(identity);
+
+        var httpContext = new DefaultHttpContext { User = user };
+
+        var accessor = new FakeHttpContextAccessor(httpContext);
+        var env = new FakeWebHostEnvironment("Production");
+
+        var context = new CurrentUserContext(accessor, env);
+
+        context.TenantId.Should().BeNull();
+        context.IsPlatformAdmin.Should().BeTrue();
+    }
+
+    [Fact]
     public void WebhookEndpointDto_DoesNotContainKeyHashOrSecrets()
     {
         var properties = typeof(WebhookEndpointDto).GetProperties();

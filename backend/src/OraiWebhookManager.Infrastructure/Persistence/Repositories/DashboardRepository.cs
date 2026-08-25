@@ -176,12 +176,20 @@ public class DashboardRepository : IDashboardRepository
         );
     }
 
-    public async Task<IReadOnlyList<MessageStatusEventDto>> GetMessageEventsAsync(
+    public async Task<IReadOnlyList<MessageStatusEventDto>?> GetMessageEventsAsync(
         Guid tenantId,
         Guid messageId,
         CancellationToken cancellationToken = default)
     {
-        const string sql = """
+        const string checkMessageSql = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM messages
+                WHERE id = @MessageId AND tenant_id = @TenantId
+            );
+            """;
+
+        const string eventsSql = """
             SELECT
                 e.id AS Id,
                 e.message_id AS MessageId,
@@ -206,8 +214,20 @@ public class DashboardRepository : IDashboardRepository
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
+        var exists = await connection.ExecuteScalarAsync<bool>(
+            new CommandDefinition(checkMessageSql, new
+            {
+                TenantId = tenantId,
+                MessageId = messageId
+            }, cancellationToken: cancellationToken));
+
+        if (!exists)
+        {
+            return null;
+        }
+
         var rows = await connection.QueryAsync<MessageStatusEventRow>(
-            new CommandDefinition(sql, new
+            new CommandDefinition(eventsSql, new
             {
                 TenantId = tenantId,
                 MessageId = messageId

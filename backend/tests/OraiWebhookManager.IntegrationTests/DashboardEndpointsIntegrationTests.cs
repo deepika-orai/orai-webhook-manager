@@ -268,6 +268,23 @@ public class DashboardEndpointsIntegrationTests : IClassFixture<CustomWebApplica
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
             because: "Production environment must ignore X-Tenant-Id header and require real authentication");
     }
+
+    [Fact]
+    public async Task GetMessageEvents_WhenMessageDoesNotExistForTenant_Returns404NotFound()
+    {
+        var tenantId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+        _fakeDashboardRepo.SetTenantActive(tenantId, true);
+
+        // Do not register events/message for this tenant
+        var client = CreateClientWithFakeDashboard();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/messages/{messageId}/events");
+        request.Headers.Add("X-Tenant-Id", tenantId.ToString());
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }
 
 public class FakeDashboardRepository : IDashboardRepository
@@ -302,10 +319,13 @@ public class FakeDashboardRepository : IDashboardRepository
         return Task.FromResult(result ?? new PagedResult<MessageListItemDto>(Array.Empty<MessageListItemDto>(), 0, filter.Page, filter.PageSize, 0));
     }
 
-    public Task<IReadOnlyList<MessageStatusEventDto>> GetMessageEventsAsync(Guid tenantId, Guid messageId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<MessageStatusEventDto>?> GetMessageEventsAsync(Guid tenantId, Guid messageId, CancellationToken cancellationToken = default)
     {
-        _events.TryGetValue((tenantId, messageId), out var events);
-        return Task.FromResult(events ?? (IReadOnlyList<MessageStatusEventDto>)Array.Empty<MessageStatusEventDto>());
+        if (_events.TryGetValue((tenantId, messageId), out var events))
+        {
+            return Task.FromResult<IReadOnlyList<MessageStatusEventDto>?>(events);
+        }
+        return Task.FromResult<IReadOnlyList<MessageStatusEventDto>?>(null);
     }
 
     public Task<IReadOnlyList<WebhookEndpointDto>> GetWebhookEndpointsAsync(Guid tenantId, CancellationToken cancellationToken = default)

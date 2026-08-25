@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { MessageListItem, MessageStatusEvent } from "../types/dashboard";
 import { getMessageEvents } from "../lib/api";
 import { StatusBadge } from "./StatusBadge";
@@ -8,44 +8,54 @@ import { StatusBadge } from "./StatusBadge";
 interface MessageDetailModalProps {
   message: MessageListItem | null;
   onClose: () => void;
+  customTenantHeader?: string;
 }
 
-export function MessageDetailModal({ message, onClose }: MessageDetailModalProps) {
+export function MessageDetailModal({ message, onClose, customTenantHeader }: MessageDetailModalProps) {
   const [events, setEvents] = useState<MessageStatusEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchEvents = useCallback(async () => {
     if (!message) return;
-
-    let isMounted = true;
-
-    const fetchEvents = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getMessageEvents(message.id);
-        if (isMounted) {
-          setEvents(data);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : "Failed to load events");
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getMessageEvents(message.id, customTenantHeader);
+      setEvents(data);
+    } catch (err: unknown) {
+      let errMsg = "Failed to load events";
+      if (err && typeof err === "object") {
+        const errObj = err as { status?: number; message?: string };
+        if (errObj.status === 401) {
+          errMsg = "Session expired or unauthenticated. Please log in again.";
+        } else if (errObj.status === 403) {
+          errMsg = "Access denied. You do not have permission to view message events for this tenant.";
+        } else if (errObj.status === 404) {
+          errMsg = "Message not found or does not belong to your tenant.";
+        } else if (errObj.message) {
+          errMsg = errObj.message;
         }
       }
-    };
+      setError(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  }, [message, customTenantHeader]);
 
-    fetchEvents();
-
+  useEffect(() => {
+    if (!message) return;
+    let ignore = false;
+    async function load() {
+      if (ignore) return;
+      await fetchEvents();
+    }
+    load();
     return () => {
-      isMounted = false;
+      ignore = true;
     };
-  }, [message]);
+  }, [message, fetchEvents]);
 
   if (!message) return null;
 
@@ -280,8 +290,19 @@ export function MessageDetailModal({ message, onClose }: MessageDetailModalProps
                 Loading status event history...
               </div>
             ) : error ? (
-              <div className="p-3 bg-rose-50 text-rose-700 rounded-lg text-xs border border-rose-200">
-                {error}
+              <div className="p-3.5 bg-rose-50 text-rose-700 rounded-xl text-xs border border-rose-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{error}</span>
+                </div>
+                <button
+                  onClick={fetchEvents}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-100 text-rose-800 hover:bg-rose-200 transition-colors shrink-0 cursor-pointer"
+                >
+                  Retry
+                </button>
               </div>
             ) : events.length === 0 ? (
               <div className="py-6 text-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">

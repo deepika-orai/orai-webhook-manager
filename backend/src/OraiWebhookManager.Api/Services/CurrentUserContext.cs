@@ -20,15 +20,36 @@ public class CurrentUserContext : ICurrentUserContext
         get
         {
             var user = _httpContextAccessor.HttpContext?.User;
-            var tenantClaim = user?.FindFirst("tenant_id")?.Value;
+            var isAuthenticated = user?.Identity?.IsAuthenticated ?? false;
 
-            // In Development ONLY, allow fallback to X-Tenant-Id header for MVP testing
-            if (string.IsNullOrEmpty(tenantClaim) && _environment.IsDevelopment())
+            if (isAuthenticated)
             {
-                tenantClaim = _httpContextAccessor.HttpContext?.Request.Headers["X-Tenant-Id"].FirstOrDefault();
+                var tenantClaim = user?.FindFirst("tenant_id")?.Value;
+                if (Guid.TryParse(tenantClaim, out var parsed))
+                {
+                    return parsed;
+                }
+
+                if (IsPlatformAdmin)
+                {
+                    var tenantHeader = _httpContextAccessor.HttpContext?.Request.Headers["X-Tenant-Id"].FirstOrDefault();
+                    if (Guid.TryParse(tenantHeader, out var inspectedTenantId))
+                    {
+                        return inspectedTenantId;
+                    }
+                }
+
+                return null;
             }
 
-            return Guid.TryParse(tenantClaim, out var parsed) ? parsed : null;
+            // In Development ONLY, allow fallback to X-Tenant-Id header for unauthenticated MVP testing
+            if (_environment.IsDevelopment())
+            {
+                var tenantHeader = _httpContextAccessor.HttpContext?.Request.Headers["X-Tenant-Id"].FirstOrDefault();
+                return Guid.TryParse(tenantHeader, out var parsed) ? parsed : null;
+            }
+
+            return null;
         }
     }
 
@@ -49,7 +70,8 @@ public class CurrentUserContext : ICurrentUserContext
         get
         {
             var user = _httpContextAccessor.HttpContext?.User;
-            return user?.IsInRole("PlatformAdmin") ?? false;
+            return (user?.IsInRole("PlatformAdmin") ?? false)
+                || (user?.FindFirst("is_platform_admin")?.Value == "true");
         }
     }
 

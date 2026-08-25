@@ -34,6 +34,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.PasswordHash).HasColumnName("password_hash").HasMaxLength(255).IsRequired();
         builder.Property(u => u.FullName).HasColumnName("full_name").HasMaxLength(128).IsRequired();
         builder.Property(u => u.IsPlatformAdmin).HasColumnName("is_platform_admin").IsRequired();
+        builder.Property(u => u.MustChangePassword).HasColumnName("must_change_password").IsRequired().HasDefaultValue(false);
+        builder.Property(u => u.AuthVersion).HasColumnName("auth_version").IsRequired().HasDefaultValue(1);
         builder.Property(u => u.EmailConfirmed).HasColumnName("email_confirmed").IsRequired();
         builder.Property(u => u.MfaEnabled).HasColumnName("mfa_enabled").IsRequired();
         builder.Property(u => u.MfaSecret).HasColumnName("mfa_secret").HasMaxLength(128);

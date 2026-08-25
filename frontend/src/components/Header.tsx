@@ -8,6 +8,11 @@ interface HeaderProps {
   autoRefresh: boolean;
   onToggleAutoRefresh: () => void;
   lastUpdated: Date | null;
+  tenantName?: string;
+  userEmail?: string;
+  isPlatformAdmin?: boolean;
+  inspectionMode?: boolean;
+  onLogout?: () => void;
 }
 
 export function Header({
@@ -16,11 +21,30 @@ export function Header({
   autoRefresh,
   onToggleAutoRefresh,
   lastUpdated,
+  tenantName,
+  userEmail,
+  isPlatformAdmin,
+  inspectionMode,
+  onLogout,
 }: HeaderProps) {
-  const tenantId = process.env.NEXT_PUBLIC_DEMO_TENANT_ID;
+  const envTenantId = process.env.NEXT_PUBLIC_DEMO_TENANT_ID;
 
   return (
     <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs backdrop-blur-md bg-white/95">
+      {inspectionMode && (
+        <div className="bg-amber-500 text-slate-950 px-4 py-1.5 text-xs font-semibold flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>🛡️ Platform Admin Inspection Mode: Inspecting Tenant [{tenantName || "Client Tenant"}]</span>
+          </div>
+          <a
+            href="/admin"
+            className="px-2.5 py-0.5 rounded bg-slate-950 text-white text-[11px] font-bold hover:bg-slate-800"
+          >
+            ← Return to Super Admin
+          </a>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo & Brand */}
@@ -45,14 +69,14 @@ export function Header({
             </div>
           </div>
 
-          {/* Right Actions: Tenant Context & Refresh */}
+          {/* Right Actions: Tenant Context & Refresh & Sign Out */}
           <div className="flex items-center gap-3">
             {/* Tenant badge */}
             <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-50 border border-slate-200/80 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-slate-500 font-medium">Tenant Context:</span>
-              <span className="font-mono text-slate-800 font-semibold" title={tenantId || "Default Dev Context"}>
-                {tenantId ? `${tenantId.substring(0, 8)}...` : "Active"}
+              <span className="text-slate-500 font-medium">Tenant:</span>
+              <span className="font-mono text-slate-800 font-semibold" title={tenantName || envTenantId || "Active Context"}>
+                {tenantName || (envTenantId ? `${envTenantId.substring(0, 8)}...` : "Active")}
               </span>
             </div>
 
@@ -87,6 +111,26 @@ export function Header({
               </svg>
               <span>Refresh</span>
             </button>
+
+            {/* Platform Admin link or Sign Out */}
+            {isPlatformAdmin && !inspectionMode && (
+              <a
+                href="/admin"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors"
+              >
+                Super Admin
+              </a>
+            )}
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                title={`Signed in as ${userEmail || "User"}`}
+              >
+                Sign Out
+              </button>
+            )}
           </div>
         </div>
       </div>

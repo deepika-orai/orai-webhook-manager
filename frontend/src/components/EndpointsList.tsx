@@ -9,9 +9,10 @@ interface EndpointsListProps {
 
 export function EndpointsList({ endpoints, loading }: EndpointsListProps) {
   const formatTimestamp = (dateStr?: string | null) => {
-    if (!dateStr) return "Never received";
+    if (!dateStr) return "Never";
     try {
       const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "Never";
       return d.toLocaleString(undefined, {
         month: "short",
         day: "numeric",
@@ -47,14 +48,14 @@ export function EndpointsList({ endpoints, loading }: EndpointsListProps) {
           No webhook endpoints provisioned for this tenant.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {endpoints.map((ep) => (
             <div
               key={ep.id}
               className="p-3.5 rounded-lg border border-slate-200/90 bg-slate-50/40 hover:bg-white hover:border-slate-300 transition-all flex flex-col justify-between gap-3 shadow-2xs"
             >
               <div className="flex items-start justify-between gap-2">
-                <div>
+                <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-semibold text-slate-900 truncate" title={ep.name}>
                     {ep.name}
                   </h3>
@@ -68,9 +69,11 @@ export function EndpointsList({ endpoints, loading }: EndpointsListProps) {
                 <StatusBadge status={ep.status} size="sm" />
               </div>
 
-              <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Last payload:</span>
-                <span className="font-medium text-slate-700">{formatTimestamp(ep.lastReceivedAt)}</span>
+              <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                <span className="shrink-0 text-slate-500">Last received:</span>
+                <span className="font-medium text-slate-700 font-mono whitespace-nowrap">
+                  {formatTimestamp(ep.lastReceivedAt)}
+                </span>
               </div>
             </div>
           ))}

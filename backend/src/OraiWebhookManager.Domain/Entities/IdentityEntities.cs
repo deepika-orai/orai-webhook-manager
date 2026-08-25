@@ -24,6 +24,8 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public bool IsPlatformAdmin { get; set; } = false;
+    public bool MustChangePassword { get; set; } = false;
+    public int AuthVersion { get; set; } = 1;
     public bool EmailConfirmed { get; set; } = false;
     public bool MfaEnabled { get; set; } = false;
     public string? MfaSecret { get; set; }

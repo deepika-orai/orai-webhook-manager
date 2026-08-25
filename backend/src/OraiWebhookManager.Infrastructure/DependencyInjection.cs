@@ -25,6 +25,7 @@ public static class DependencyInjection
         // Configure options
         services.Configure<RetentionOptions>(configuration.GetSection(RetentionOptions.SectionName));
         services.Configure<WebhookIngestionOptions>(configuration.GetSection(WebhookIngestionOptions.SectionName));
+        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
 
         // Memory Cache
         services.AddMemoryCache();
@@ -50,6 +51,10 @@ public static class DependencyInjection
         services.AddScoped<IPlatformAdminDbContext>(sp => sp.GetRequiredService<PlatformAdminDbContext>());
 
         // Repositories & Services
+        services.AddSingleton<IPasswordService, PasswordService>();
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAdminService, AdminService>();
         services.AddSingleton<IWebhookKeyService, WebhookKeyService>();
         services.AddSingleton<IMetaWebhookParser, MetaWebhookParser>();
         services.AddScoped<IWebhookInboxRepository, WebhookInboxRepository>();
