@@ -24,6 +24,7 @@ import { EndpointsList } from "../../components/EndpointsList";
 import { MessagesTable } from "../../components/MessagesTable";
 import { MessageDetailModal } from "../../components/MessageDetailModal";
 import { ErrorState } from "../../components/EmptyAndErrorStates";
+import { OraiLoadingScene } from "../../components/OraiLoadingScene";
 
 function DashboardContent() {
   const router = useRouter();
@@ -157,7 +158,13 @@ function DashboardContent() {
     inspectTenantName || session?.tenant?.name || process.env.NEXT_PUBLIC_DEMO_TENANT_NAME;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8F9FD] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 flex flex-col font-sans relative transition-colors duration-150">
+      {/* Subtle background grid pattern */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 bg-grid-pattern dark:bg-grid-pattern-dark opacity-30 pointer-events-none -z-10"
+      />
+
       <Header
         onRefreshAll={handleRefreshAll}
         loading={loadingSummary || loadingMessages || loadingEndpoints}
@@ -171,7 +178,7 @@ function DashboardContent() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-7 relative z-10 animate-card-enter">
         {/* Error state if summary failed to load */}
         {summaryError && !summary && (
           <ErrorState
@@ -183,7 +190,7 @@ function DashboardContent() {
         {/* Section 1: KPI Metrics Overview */}
         <section aria-labelledby="kpi-overview-heading">
           <h2 id="kpi-overview-heading" className="sr-only">KPI Overview</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
             <MetricCard
               title="Total Messages"
               value={summary?.totalMessages ?? 0}
@@ -235,13 +242,13 @@ function DashboardContent() {
             {summary ? (
               <StatusDistribution summary={summary} />
             ) : (
-              <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs text-center text-slate-400 py-12">
+              <div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 p-5 shadow-xs text-center text-slate-400 dark:text-slate-500 py-12">
                 Loading status distribution...
               </div>
             )}
           </div>
           <div>
-            <EndpointsList endpoints={endpoints} />
+            <EndpointsList endpoints={endpoints} loading={loadingEndpoints} />
           </div>
         </section>
 
@@ -249,8 +256,9 @@ function DashboardContent() {
         <section aria-labelledby="messages-table-heading" className="space-y-4">
           <h2 id="messages-table-heading" className="sr-only">Messages Feed</h2>
           {messagesError && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-              <span>⚠️ {messagesError}</span>
+            <div role="alert" className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+              <span aria-hidden="true">⚠️</span>
+              <span>{messagesError}</span>
             </div>
           )}
           <MessagesTable
@@ -278,7 +286,15 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Loading dashboard...</div>}>
+    <Suspense
+      fallback={
+        <OraiLoadingScene
+          title="ORAI Webhook Manager"
+          subtitle="Loading tenant telemetry dashboard..."
+          theme="light"
+        />
+      }
+    >
       <DashboardContent />
     </Suspense>
   );
