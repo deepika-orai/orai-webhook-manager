@@ -268,6 +268,7 @@ function DashboardContent() {
             onSelectMessage={(msg) => setSelectedMessage(msg)}
             loading={loadingMessages}
             onRefresh={handleRefreshAll}
+            customTenantHeader={inspectTenantId}
           />
         </section>
       </main>

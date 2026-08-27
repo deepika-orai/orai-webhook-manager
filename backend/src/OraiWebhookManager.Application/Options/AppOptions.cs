@@ -19,6 +19,7 @@ public class WebhookIngestionOptions
     public int WorkerBatchSize { get; set; } = 100;
     public int LeaseDurationSeconds { get; set; } = 120;
     public int MaxRetryAttempts { get; set; } = 5;
+    public string PublicBaseUrl { get; set; } = "http://localhost:5135";
 }
 
 public class JwtOptions

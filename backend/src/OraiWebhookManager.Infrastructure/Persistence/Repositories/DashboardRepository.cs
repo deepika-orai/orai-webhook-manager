@@ -415,4 +415,80 @@ public class DashboardRepository : IDashboardRepository
             );
         }
     }
+
+    internal sealed class StatusLogExportDbRow
+    {
+        public string MessageId { get; set; } = string.Empty;
+        public string RecipientId { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime StatusTimestamp { get; set; }
+        public string DisplayPhoneNumberOrId { get; set; } = string.Empty;
+        public string ConversationId { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string PricingModel { get; set; } = string.Empty;
+        public string ErrorCode { get; set; } = string.Empty;
+        public string ErrorMessage { get; set; } = string.Empty;
+        public DateTime ReceivedAt { get; set; }
+    }
+
+    public async Task<IReadOnlyList<StatusLogExportRow>> GetStatusLogsForExportAsync(
+        Guid tenantId,
+        MessageFilterParams filter,
+        CancellationToken cancellationToken = default)
+    {
+        var searchPattern = string.IsNullOrWhiteSpace(filter.Search) ? null : $"%{filter.Search.Trim()}%";
+        var status = string.IsNullOrWhiteSpace(filter.Status) || filter.Status.Equals("ALL", StringComparison.OrdinalIgnoreCase) ? null : filter.Status.Trim();
+
+        const string sql = """
+            SELECT
+                e.wamid AS MessageId,
+                COALESCE(m.recipient_phone, '') AS RecipientId,
+                e.status AS Status,
+                e.status_timestamp AS StatusTimestamp,
+                COALESCE(m.display_phone_number, m.phone_number_id, '') AS DisplayPhoneNumberOrId,
+                COALESCE(m.conversation_id, '') AS ConversationId,
+                COALESCE(m.pricing_category, m.conversation_origin_type, '') AS Category,
+                COALESCE(m.pricing_model, '') AS PricingModel,
+                COALESCE(e.error_code, '') AS ErrorCode,
+                COALESCE(e.error_message, '') AS ErrorMessage,
+                e.created_at AS ReceivedAt
+            FROM message_status_events e
+            LEFT JOIN messages m ON e.message_id = m.id AND m.tenant_id = @TenantId
+            WHERE e.tenant_id = @TenantId
+              AND (@Status IS NULL OR LOWER(e.status) = LOWER(@Status))
+              AND (@SearchPattern IS NULL OR e.wamid ILIKE @SearchPattern OR m.recipient_phone ILIKE @SearchPattern)
+              AND (@DateFrom IS NULL OR e.status_timestamp >= @DateFrom)
+              AND (@DateTo IS NULL OR e.status_timestamp <= @DateTo)
+            ORDER BY e.status_timestamp DESC, e.created_at DESC
+            LIMIT @MaxLimit;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var rows = await connection.QueryAsync<StatusLogExportDbRow>(
+            new CommandDefinition(sql, new
+            {
+                TenantId = tenantId,
+                Status = status,
+                SearchPattern = searchPattern,
+                DateFrom = filter.DateFrom,
+                DateTo = filter.DateTo,
+                MaxLimit = 50000
+            }, cancellationToken: cancellationToken));
+
+        return rows.Select(r => new StatusLogExportRow(
+            MessageId: r.MessageId,
+            RecipientId: r.RecipientId,
+            Status: r.Status,
+            StatusTimestamp: ToUtcOffset(r.StatusTimestamp),
+            DisplayPhoneNumberOrId: r.DisplayPhoneNumberOrId,
+            ConversationId: r.ConversationId,
+            Category: r.Category,
+            PricingModel: r.PricingModel,
+            ErrorCode: r.ErrorCode,
+            ErrorMessage: r.ErrorMessage,
+            ReceivedAt: ToUtcOffset(r.ReceivedAt)
+        )).ToList();
+    }
 }

@@ -479,3 +479,76 @@ export async function getWebhookEndpoints(customTenantHeader?: string): Promise<
     cache: "no-store",
   });
 }
+
+export async function exportStatusLogsCsvApi(
+  filters: Partial<MessageFilterState>,
+  customTenantHeader?: string
+): Promise<{ blob: Blob; filename: string }> {
+  const params = new URLSearchParams();
+  if (filters.status && filters.status !== "ALL") params.set("status", filters.status);
+  if (filters.search && filters.search.trim()) params.set("search", filters.search.trim());
+  if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) params.set("dateTo", filters.dateTo);
+
+  const headers: Record<string, string> = {
+    Accept: "text/csv",
+  };
+  if (customTenantHeader) {
+    headers["X-Tenant-Id"] = customTenantHeader;
+  }
+
+  const queryString = params.toString();
+  const url = `${API_BASE_URL}/messages/export${queryString ? `?${queryString}` : ""}`;
+
+  let res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: getHeaders(headers),
+  });
+
+  if (res.status === 401) {
+    try {
+      const csrfToken = await ensureCsrfToken();
+      const refreshHeaders: Record<string, string> = {};
+      if (csrfToken) {
+        refreshHeaders["X-XSRF-TOKEN"] = csrfToken;
+      }
+      const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: getHeaders(refreshHeaders),
+      });
+      if (refreshRes.ok) {
+        await ensureCsrfToken(true);
+        res = await fetch(url, {
+          method: "GET",
+          credentials: "include",
+          headers: getHeaders(headers),
+        });
+      }
+    } catch {
+      // Refresh failed
+    }
+  }
+
+  if (!res.ok) {
+    let errorMsg = `Export failed (HTTP ${res.status})`;
+    try {
+      const errJson = await res.json();
+      if (errJson?.error) errorMsg = errJson.error;
+    } catch {
+      // Non-JSON error
+    }
+    throw new Error(errorMsg);
+  }
+
+  const contentDisposition = res.headers.get("Content-Disposition") || "";
+  let filename = "whatsapp_status_logs.csv";
+  const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+  if (match && match[1]) {
+    filename = match[1].replace(/['"]/g, "").trim();
+  }
+
+  const blob = await res.blob();
+  return { blob, filename };
+}

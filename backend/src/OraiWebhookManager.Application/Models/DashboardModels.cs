@@ -85,3 +85,17 @@ public record WebhookEndpointDto(
     DateTimeOffset? LastReceivedAt,
     DateTimeOffset CreatedAt
 );
+
+public record StatusLogExportRow(
+    string MessageId,
+    string RecipientId,
+    string Status,
+    DateTimeOffset StatusTimestamp,
+    string DisplayPhoneNumberOrId,
+    string ConversationId,
+    string Category,
+    string PricingModel,
+    string ErrorCode,
+    string ErrorMessage,
+    DateTimeOffset ReceivedAt
+);

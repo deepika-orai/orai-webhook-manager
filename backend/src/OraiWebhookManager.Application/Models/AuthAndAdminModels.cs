@@ -128,7 +128,8 @@ public record ResetClientPasswordResult(
 public record RotateKeyResult(
     Guid EndpointId,
     string PlainKey,
-    string KeyPrefix
+    string KeyPrefix,
+    string? WebhookUrl = null
 );
 
 public record AdminTenantFilterParams(

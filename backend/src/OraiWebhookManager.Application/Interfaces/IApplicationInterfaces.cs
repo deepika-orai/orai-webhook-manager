@@ -83,6 +83,7 @@ public interface IDashboardRepository
     Task<PagedResult<MessageListItemDto>> GetMessagesAsync(Guid tenantId, MessageFilterParams filter, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MessageStatusEventDto>?> GetMessageEventsAsync(Guid tenantId, Guid messageId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<WebhookEndpointDto>> GetWebhookEndpointsAsync(Guid tenantId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<StatusLogExportRow>> GetStatusLogsForExportAsync(Guid tenantId, MessageFilterParams filter, CancellationToken cancellationToken = default);
     Task<bool> ValidateTenantActiveAsync(Guid tenantId, CancellationToken cancellationToken = default);
 }
 

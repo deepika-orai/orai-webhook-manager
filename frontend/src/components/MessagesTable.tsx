@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { MessageFilterState, MessageListItem, PagedResult } from "../types/dashboard";
+import { exportStatusLogsCsvApi } from "../lib/api";
 import { StatusBadge } from "./StatusBadge";
 import { EmptyState } from "./EmptyAndErrorStates";
 
@@ -12,6 +13,7 @@ interface MessagesTableProps {
   onSelectMessage: (message: MessageListItem) => void;
   loading: boolean;
   onRefresh: () => void;
+  customTenantHeader?: string;
 }
 
 export function MessagesTable({
@@ -21,8 +23,64 @@ export function MessagesTable({
   onSelectMessage,
   loading,
   onRefresh,
+  customTenantHeader,
 }: MessagesTableProps) {
   const [searchInput, setSearchInput] = useState(filters.search);
+  const [exportPeriod, setExportPeriod] = useState<"7d" | "30d" | "90d" | "custom">("7d");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExportCsv = async () => {
+    setExportError(null);
+    let exportDateFrom: string | undefined;
+    let exportDateTo: string | undefined;
+
+    const now = new Date();
+    if (exportPeriod === "7d") {
+      exportDateTo = now.toISOString();
+      exportDateFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (exportPeriod === "30d") {
+      exportDateTo = now.toISOString();
+      exportDateFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (exportPeriod === "90d") {
+      exportDateTo = now.toISOString();
+      exportDateFrom = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (exportPeriod === "custom") {
+      if (!filters.dateFrom || !filters.dateTo) {
+        setExportError("Please select both a Start Date and End Date in the dashboard filters for custom date range export.");
+        return;
+      }
+      if (new Date(filters.dateFrom) > new Date(filters.dateTo)) {
+        setExportError("Start Date cannot be after End Date.");
+        return;
+      }
+      exportDateFrom = filters.dateFrom;
+      exportDateTo = filters.dateTo;
+    }
+
+    setExporting(true);
+    try {
+      const exportFilters: Partial<MessageFilterState> = {
+        status: filters.status,
+        search: filters.search,
+        dateFrom: exportDateFrom,
+        dateTo: exportDateTo,
+      };
+      const { blob, filename } = await exportStatusLogsCsvApi(exportFilters, customTenantHeader);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Failed to export CSV");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +140,53 @@ export function MessagesTable({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Export Period Selector */}
+            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1">
+              <label htmlFor="export-period" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                Export:
+              </label>
+              <select
+                id="export-period"
+                aria-label="Export Period"
+                value={exportPeriod}
+                onChange={(e) => {
+                  setExportPeriod(e.target.value as "7d" | "30d" | "90d" | "custom");
+                  setExportError(null);
+                }}
+                disabled={exporting || loading}
+                className="bg-transparent text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+              >
+                <option value="7d" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Last 7 Days</option>
+                <option value="30d" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Last 30 Days</option>
+                <option value="90d" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Last 90 Days</option>
+                <option value="custom" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Custom Date Range</option>
+              </select>
+            </div>
+
+            <button
+              onClick={handleExportCsv}
+              disabled={exporting || loading || (exportPeriod === "custom" && (!filters.dateFrom || !filters.dateTo))}
+              className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-purple-700 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 border border-slate-200 dark:border-slate-700 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-xs"
+              title="Download status logs as CSV"
+            >
+              {exporting ? (
+                <>
+                  <svg className="w-3.5 h-3.5 animate-spin text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <span>Exporting...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Download CSV</span>
+                </>
+              )}
+            </button>
             <button
               onClick={onRefresh}
               disabled={loading}
@@ -101,6 +205,18 @@ export function MessagesTable({
             </button>
           </div>
         </div>
+
+        {exportError && (
+          <div role="alert" className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true">⚠️</span>
+              <span>{exportError}</span>
+            </div>
+            <button onClick={() => setExportError(null)} className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 font-bold text-xs p-1 cursor-pointer">
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Filter Controls Row */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-1">
@@ -132,7 +248,7 @@ export function MessagesTable({
 
           {/* Search Form & Date Range */}
           <div className="flex flex-wrap items-center gap-2">
-            <form onSubmit={handleSearchSubmit} className="relative flex-1 sm:w-64">
+            <form onSubmit={handleSearchSubmit} className="relative flex-1 sm:w-56">
               <input
                 type="text"
                 placeholder="Search WAMID or Phone..."
@@ -150,6 +266,37 @@ export function MessagesTable({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </form>
+
+            {/* Date Range Inputs */}
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <input
+                id="filter-date-from"
+                aria-label="Filter from date"
+                type="date"
+                value={filters.dateFrom ? filters.dateFrom.split("T")[0] : ""}
+                onChange={(e) => {
+                  const val = e.target.value ? new Date(e.target.value).toISOString() : "";
+                  onFilterChange({ dateFrom: val, page: 1 });
+                }}
+                className="px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                placeholder="From date"
+                title="Filter from date"
+              />
+              <span className="text-slate-400 dark:text-slate-600">to</span>
+              <input
+                id="filter-date-to"
+                aria-label="Filter to date"
+                type="date"
+                value={filters.dateTo ? filters.dateTo.split("T")[0] : ""}
+                onChange={(e) => {
+                  const val = e.target.value ? new Date(new Date(e.target.value).setUTCHours(23, 59, 59, 999)).toISOString() : "";
+                  onFilterChange({ dateTo: val, page: 1 });
+                }}
+                className="px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                placeholder="To date"
+                title="Filter to date"
+              />
+            </div>
 
             {(filters.search || filters.status !== "ALL" || filters.dateFrom || filters.dateTo) && (
               <button

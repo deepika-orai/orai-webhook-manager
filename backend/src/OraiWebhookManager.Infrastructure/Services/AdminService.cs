@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OraiWebhookManager.Application.Interfaces;
 using OraiWebhookManager.Application.Models;
+using OraiWebhookManager.Application.Options;
 using OraiWebhookManager.Domain.Entities;
 using OraiWebhookManager.Domain.Enums;
 using OraiWebhookManager.Infrastructure.Persistence;
@@ -15,6 +17,7 @@ public class AdminService : IAdminService
     private readonly IPasswordService _passwordService;
     private readonly IWebhookKeyService _webhookKeyService;
     private readonly ICacheInvalidator _cacheInvalidator;
+    private readonly WebhookIngestionOptions _webhookOptions;
     private readonly ILogger<AdminService> _logger;
 
     public AdminService(
@@ -22,12 +25,14 @@ public class AdminService : IAdminService
         IPasswordService passwordService,
         IWebhookKeyService webhookKeyService,
         ICacheInvalidator cacheInvalidator,
+        IOptions<WebhookIngestionOptions> webhookOptions,
         ILogger<AdminService> logger)
     {
         _dbContext = dbContext;
         _passwordService = passwordService;
         _webhookKeyService = webhookKeyService;
         _cacheInvalidator = cacheInvalidator;
+        _webhookOptions = webhookOptions.Value;
         _logger = logger;
     }
 
@@ -269,7 +274,12 @@ public class AdminService : IAdminService
 
         _logger.LogInformation("Tenant {TenantSlug} successfully onboarded by Admin {AdminId}", tenant.Slug, adminUserId);
 
-        var webhookUrl = $"/api/webhooks/whatsapp?key={keyGen.PlainKey}";
+        var baseUrl = (_webhookOptions.PublicBaseUrl ?? string.Empty).Trim().TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            baseUrl = "http://localhost:5135";
+        }
+        var webhookUrl = $"{baseUrl}/api/webhooks/whatsapp/{keyGen.PlainKey}";
 
         return new CreateTenantResult(
             tenant.Id,
@@ -442,7 +452,14 @@ public class AdminService : IAdminService
 
         _logger.LogInformation("Webhook endpoint {EndpointId} key rotated by Admin {AdminId}", endpoint.Id, adminUserId);
 
-        return new RotateKeyResult(endpoint.Id, keyGen.PlainKey, keyGen.KeyPrefix);
+        var baseUrl = (_webhookOptions.PublicBaseUrl ?? string.Empty).Trim().TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            baseUrl = "http://localhost:5135";
+        }
+        var webhookUrl = $"{baseUrl}/api/webhooks/whatsapp/{keyGen.PlainKey}";
+
+        return new RotateKeyResult(endpoint.Id, keyGen.PlainKey, keyGen.KeyPrefix, webhookUrl);
     }
 
     public async Task<PlatformSummaryDto> GetPlatformSummaryAsync(CancellationToken cancellationToken = default)

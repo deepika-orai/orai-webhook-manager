@@ -182,4 +182,74 @@ describe("MessageDetailModal Component", () => {
 
     expect(api.getMessageEvents).toHaveBeenCalledTimes(2);
   });
+
+  it("displays Sent -> Failed lifecycle with error code and error details clearly", async () => {
+    const mockFailedEvents: MessageStatusEvent[] = [
+      {
+        id: "evt-1",
+        messageId: "msg-12345",
+        wamid: "wamid.HBgL1234567890",
+        status: "sent",
+        statusTimestamp: "2026-08-25T11:55:00Z",
+        errorCode: null,
+        errorTitle: null,
+        errorMessage: null,
+        errorDetails: null,
+        errorData: null,
+        createdAt: "2026-08-25T11:55:00Z",
+      },
+      {
+        id: "evt-failed",
+        messageId: "msg-12345",
+        wamid: "wamid.HBgL1234567890",
+        status: "failed",
+        statusTimestamp: "2026-08-25T11:56:00Z",
+        errorCode: "131026",
+        errorTitle: "Message Undeliverable",
+        errorMessage: "Receiver is not a valid WhatsApp user.",
+        errorDetails: "User account deactivated or deregistered.",
+        errorData: null,
+        createdAt: "2026-08-25T11:56:00Z",
+      },
+    ];
+
+    vi.mocked(api.getMessageEvents).mockResolvedValueOnce(mockFailedEvents);
+
+    render(<MessageDetailModal message={sampleMessage} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Code: 131026")).toBeInTheDocument();
+      expect(screen.getByText("Message Undeliverable")).toBeInTheDocument();
+      expect(screen.getByText("Receiver is not a valid WhatsApp user.")).toBeInTheDocument();
+      expect(screen.getByText("User account deactivated or deregistered.")).toBeInTheDocument();
+    });
+  });
+
+  it("displays only Read event when only Read callback was received and does not fabricate sent or delivered", async () => {
+    const mockOnlyRead: MessageStatusEvent[] = [
+      {
+        id: "evt-read-only",
+        messageId: "msg-12345",
+        wamid: "wamid.HBgL1234567890",
+        status: "read",
+        statusTimestamp: "2026-08-25T12:00:00Z",
+        errorCode: null,
+        errorTitle: null,
+        errorMessage: null,
+        errorDetails: null,
+        errorData: null,
+        createdAt: "2026-08-25T12:00:00Z",
+      },
+    ];
+
+    vi.mocked(api.getMessageEvents).mockResolvedValueOnce(mockOnlyRead);
+
+    render(<MessageDetailModal message={sampleMessage} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Immutable Status History")).toBeInTheDocument();
+      expect(screen.getByText(/Read/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Sent/i)).not.toBeInTheDocument();
+    });
+  });
 });

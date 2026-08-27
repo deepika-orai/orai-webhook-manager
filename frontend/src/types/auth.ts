@@ -114,4 +114,5 @@ export interface RotateKeyResponse {
   endpointId: string;
   plainKey: string;
   keyPrefix: string;
+  webhookUrl?: string;
 }

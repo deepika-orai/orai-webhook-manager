@@ -49,11 +49,17 @@ public class AuthAndAdminServiceTests
             NullLogger<AuthService>.Instance
         );
 
+        var webhookOptions = Options.Create(new WebhookIngestionOptions
+        {
+            PublicBaseUrl = "http://localhost:5135"
+        });
+
         var adminService = new AdminService(
             db,
             passwordService,
             webhookKeyService,
             cacheInvalidator,
+            webhookOptions,
             NullLogger<AdminService>.Instance
         );
 

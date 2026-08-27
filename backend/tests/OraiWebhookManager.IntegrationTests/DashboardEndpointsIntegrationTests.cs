@@ -285,6 +285,173 @@ public class DashboardEndpointsIntegrationTests : IClassFixture<CustomWebApplica
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task GetMessageEvents_SentDeliveredRead_ReturnsAllThreeEventsInChronologicalOrder()
+    {
+        var tenantId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+        _fakeDashboardRepo.SetTenantActive(tenantId, true);
+
+        var t0 = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var t1 = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var t2 = DateTimeOffset.UtcNow.AddMinutes(-1);
+
+        var events = new List<MessageStatusEventDto>
+        {
+            new(Guid.NewGuid(), messageId, "wamid.lifecycle.1", "sent", t0, null, null, null, null, null, t0),
+            new(Guid.NewGuid(), messageId, "wamid.lifecycle.1", "delivered", t1, null, null, null, null, null, t1),
+            new(Guid.NewGuid(), messageId, "wamid.lifecycle.1", "read", t2, null, null, null, null, null, t2),
+        };
+
+        _fakeDashboardRepo.SetEvents(tenantId, messageId, events);
+
+        var client = CreateClientWithFakeDashboard();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/messages/{messageId}/events");
+        request.Headers.Add("X-Tenant-Id", tenantId.ToString());
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<List<MessageStatusEventDto>>();
+        result.Should().NotBeNull();
+        result.Should().HaveCount(3);
+        result![0].Status.Should().Be("sent");
+        result[1].Status.Should().Be("delivered");
+        result[2].Status.Should().Be("read");
+    }
+
+    [Fact]
+    public async Task GetMessageEvents_SentFailed_ReturnsErrorDetailsInTimeline()
+    {
+        var tenantId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+        _fakeDashboardRepo.SetTenantActive(tenantId, true);
+
+        var t0 = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var t1 = DateTimeOffset.UtcNow.AddMinutes(-2);
+
+        var events = new List<MessageStatusEventDto>
+        {
+            new(Guid.NewGuid(), messageId, "wamid.fail.1", "sent", t0, null, null, null, null, null, t0),
+            new(Guid.NewGuid(), messageId, "wamid.fail.1", "failed", t1, "131026", "Message Undeliverable", "Recipient is not a valid WhatsApp user.", "User deregistered", "{\"error_subcode\":131026}", t1),
+        };
+
+        _fakeDashboardRepo.SetEvents(tenantId, messageId, events);
+
+        var client = CreateClientWithFakeDashboard();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/messages/{messageId}/events");
+        request.Headers.Add("X-Tenant-Id", tenantId.ToString());
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<List<MessageStatusEventDto>>();
+        result.Should().NotBeNull();
+        result.Should().HaveCount(2);
+        result![1].Status.Should().Be("failed");
+        result[1].ErrorCode.Should().Be("131026");
+        result[1].ErrorTitle.Should().Be("Message Undeliverable");
+        result[1].ErrorMessage.Should().Be("Recipient is not a valid WhatsApp user.");
+    }
+
+    [Fact]
+    public async Task GetMessageEvents_WhenOnlyReadEventStored_ReturnsOnlyReadEventWithoutFabricatingSentOrDelivered()
+    {
+        var tenantId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+        _fakeDashboardRepo.SetTenantActive(tenantId, true);
+
+        var tRead = DateTimeOffset.UtcNow.AddMinutes(-3);
+
+        var events = new List<MessageStatusEventDto>
+        {
+            new(Guid.NewGuid(), messageId, "wamid.onlyread.1", "read", tRead, null, null, null, null, null, tRead),
+        };
+
+        _fakeDashboardRepo.SetEvents(tenantId, messageId, events);
+
+        var client = CreateClientWithFakeDashboard();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/messages/{messageId}/events");
+        request.Headers.Add("X-Tenant-Id", tenantId.ToString());
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<List<MessageStatusEventDto>>();
+        result.Should().NotBeNull();
+        result.Should().HaveCount(1, because: "API must only return stored events and never fabricate synthetic sent or delivered events");
+        result![0].Status.Should().Be("read");
+    }
+
+    [Fact]
+    public async Task ExportStatusLogsCsv_WithDateRangeAndFilters_ReturnsFilteredCsvContentAndHeader()
+    {
+        var tenantId = Guid.NewGuid();
+        _fakeDashboardRepo.SetTenantActive(tenantId, true);
+
+        var now = DateTimeOffset.UtcNow;
+        var exportLogs = new List<StatusLogExportRow>
+        {
+            new("wamid.export.1", "+15551234567", "delivered", now.AddDays(-2), "+15550000000", "conv-1", "utility", "CBP", "", "", now.AddDays(-2)),
+            new("wamid.export.2", "+15559876543", "read", now.AddDays(-10), "+15550000000", "conv-2", "marketing", "CBP", "", "", now.AddDays(-10)),
+            new("wamid.export.3", "+15551112233", "failed", now.AddDays(-40), "+15550000000", "conv-3", "service", "CBP", "131047", "Rate limit", now.AddDays(-40)),
+        };
+
+        _fakeDashboardRepo.SetExportLogs(tenantId, exportLogs);
+
+        var client = CreateClientWithFakeDashboard();
+
+        // Query with Last 7 Days rolling date range: from now-7d to now
+        var dateFrom = now.AddDays(-7).ToString("O");
+        var dateTo = now.ToString("O");
+
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/messages/export?dateFrom={Uri.EscapeDataString(dateFrom)}&dateTo={Uri.EscapeDataString(dateTo)}&status=delivered");
+        request.Headers.Add("X-Tenant-Id", tenantId.ToString());
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/csv");
+        response.Content.Headers.ContentDisposition.Should().NotBeNull();
+        response.Content.Headers.ContentDisposition!.FileName.Should().Contain($"whatsapp_status_logs_{tenantId:N}_");
+
+        var csvText = await response.Content.ReadAsStringAsync();
+        csvText.Should().Contain("wamid.export.1");
+        csvText.Should().NotContain("wamid.export.2", because: "date is outside the 7-day range and status is read");
+        csvText.Should().NotContain("wamid.export.3", because: "date is outside the 7-day range");
+    }
+
+    [Fact]
+    public async Task ExportStatusLogsCsv_EnforcesTenantIsolation()
+    {
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        _fakeDashboardRepo.SetTenantActive(tenantA, true);
+        _fakeDashboardRepo.SetTenantActive(tenantB, true);
+
+        var now = DateTimeOffset.UtcNow;
+        _fakeDashboardRepo.SetExportLogs(tenantA, new List<StatusLogExportRow>
+        {
+            new("wamid.tenantA.1", "+15551111111", "delivered", now, "+15550000000", "conv-A", "utility", "CBP", "", "", now),
+        });
+
+        _fakeDashboardRepo.SetExportLogs(tenantB, new List<StatusLogExportRow>
+        {
+            new("wamid.tenantB.1", "+15552222222", "delivered", now, "+15550000000", "conv-B", "utility", "CBP", "", "", now),
+        });
+
+        var client = CreateClientWithFakeDashboard();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/messages/export");
+        request.Headers.Add("X-Tenant-Id", tenantA.ToString());
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var csvText = await response.Content.ReadAsStringAsync();
+        csvText.Should().Contain("wamid.tenantA.1");
+        csvText.Should().NotContain("wamid.tenantB.1", because: "Tenant A must never see Tenant B's export data");
+    }
 }
 
 public class FakeDashboardRepository : IDashboardRepository
@@ -294,12 +461,14 @@ public class FakeDashboardRepository : IDashboardRepository
     private readonly Dictionary<Guid, PagedResult<MessageListItemDto>> _messages = new();
     private readonly Dictionary<(Guid TenantId, Guid MessageId), IReadOnlyList<MessageStatusEventDto>> _events = new();
     private readonly Dictionary<Guid, IReadOnlyList<WebhookEndpointDto>> _endpoints = new();
+    private readonly Dictionary<Guid, List<StatusLogExportRow>> _exportLogs = new();
 
     public void SetTenantActive(Guid tenantId, bool isActive) => _tenantActiveMap[tenantId] = isActive;
     public void SetSummary(Guid tenantId, DashboardSummaryDto summary) => _summaries[tenantId] = summary;
     public void SetMessages(Guid tenantId, PagedResult<MessageListItemDto> messages) => _messages[tenantId] = messages;
     public void SetEvents(Guid tenantId, Guid messageId, IReadOnlyList<MessageStatusEventDto> events) => _events[(tenantId, messageId)] = events;
     public void SetEndpoints(Guid tenantId, IReadOnlyList<WebhookEndpointDto> endpoints) => _endpoints[tenantId] = endpoints;
+    public void SetExportLogs(Guid tenantId, List<StatusLogExportRow> logs) => _exportLogs[tenantId] = logs;
 
     public Task<bool> ValidateTenantActiveAsync(Guid tenantId, CancellationToken cancellationToken = default)
     {
@@ -332,5 +501,34 @@ public class FakeDashboardRepository : IDashboardRepository
     {
         _endpoints.TryGetValue(tenantId, out var endpoints);
         return Task.FromResult(endpoints ?? (IReadOnlyList<WebhookEndpointDto>)Array.Empty<WebhookEndpointDto>());
+    }
+
+    public Task<IReadOnlyList<StatusLogExportRow>> GetStatusLogsForExportAsync(Guid tenantId, MessageFilterParams filter, CancellationToken cancellationToken = default)
+    {
+        if (!_exportLogs.TryGetValue(tenantId, out var logs))
+        {
+            return Task.FromResult<IReadOnlyList<StatusLogExportRow>>(Array.Empty<StatusLogExportRow>());
+        }
+
+        var query = logs.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(filter.Status) && !filter.Status.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(r => r.Status.Equals(filter.Status, StringComparison.OrdinalIgnoreCase));
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var s = filter.Search.Trim();
+            query = query.Where(r => r.MessageId.Contains(s, StringComparison.OrdinalIgnoreCase) || r.RecipientId.Contains(s, StringComparison.OrdinalIgnoreCase));
+        }
+        if (filter.DateFrom.HasValue)
+        {
+            query = query.Where(r => r.StatusTimestamp >= filter.DateFrom.Value);
+        }
+        if (filter.DateTo.HasValue)
+        {
+            query = query.Where(r => r.StatusTimestamp <= filter.DateTo.Value);
+        }
+
+        return Task.FromResult<IReadOnlyList<StatusLogExportRow>>(query.ToList());
     }
 }

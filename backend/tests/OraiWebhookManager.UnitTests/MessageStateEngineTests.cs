@@ -127,4 +127,54 @@ public class MessageStateEngineTests
         MessageStateEngine.ShouldApplyStateTransition("failed", MessageStateEngine.RankFailed, t1, "delivered", MessageStateEngine.RankDelivered, t0Older)
             .Should().BeFalse();
     }
+
+    [Fact]
+    public void ComputeEventFingerprint_ExactDuplicateCallbacks_ProduceIdenticalFingerprint()
+    {
+        var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var fpInitial = MessageStateEngine.ComputeEventFingerprint(_tenantId, Wamid, "sent", ts, null);
+        var fpDuplicate = MessageStateEngine.ComputeEventFingerprint(_tenantId, Wamid, "sent", ts, null);
+
+        fpInitial.Should().Equal(fpDuplicate);
+    }
+
+    [Fact]
+    public void ShouldApplyStateTransition_OutOfOrder_DeliveredBeforeSent_RejectsLateSent()
+    {
+        var tDelivered = DateTimeOffset.UtcNow.AddMinutes(-2);
+        var tSent = DateTimeOffset.UtcNow.AddMinutes(-5);
+
+        // Step 1: Delivered arrives first (unseen message) -> accepted
+        MessageStateEngine.ShouldApplyStateTransition(null, null, null, "delivered", MessageStateEngine.RankDelivered, tDelivered)
+            .Should().BeTrue();
+
+        // Step 2: Delayed Sent callback arrives later -> rejected (delivered never downgrades to sent)
+        MessageStateEngine.ShouldApplyStateTransition("delivered", MessageStateEngine.RankDelivered, tDelivered, "sent", MessageStateEngine.RankSent, tSent)
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public void ShouldApplyStateTransition_OutOfOrder_ReadBeforeDelivered_RejectsLateDelivered()
+    {
+        var tRead = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var tDelivered = DateTimeOffset.UtcNow.AddMinutes(-3);
+
+        // Step 1: Read arrives first (unseen message) -> accepted
+        MessageStateEngine.ShouldApplyStateTransition(null, null, null, "read", MessageStateEngine.RankRead, tRead)
+            .Should().BeTrue();
+
+        // Step 2: Delayed Delivered callback arrives -> rejected (read never downgrades to delivered)
+        MessageStateEngine.ShouldApplyStateTransition("read", MessageStateEngine.RankRead, tRead, "delivered", MessageStateEngine.RankDelivered, tDelivered)
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public void ShouldApplyStateTransition_OnlyReadEventReceived_TransitionsDirectlyToRead()
+    {
+        var tRead = DateTimeOffset.UtcNow;
+
+        // Unseen message receiving only Read event transitions to Read directly without requiring sent/delivered
+        var allowed = MessageStateEngine.ShouldApplyStateTransition(null, null, null, "read", MessageStateEngine.RankRead, tRead);
+        allowed.Should().BeTrue();
+    }
 }
