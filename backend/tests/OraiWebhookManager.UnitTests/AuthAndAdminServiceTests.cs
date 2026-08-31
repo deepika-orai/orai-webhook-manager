@@ -123,6 +123,41 @@ public class AuthAndAdminServiceTests
     }
 
     [Fact]
+    public async Task LoginAsync_PlatformAdminWithoutTenant_ReturnsSuccessAndNullTenant()
+    {
+        var (authService, _, db, passwordService, _) = CreateServices(nameof(LoginAsync_PlatformAdminWithoutTenant_ReturnsSuccessAndNullTenant));
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "superadmin@orai.com",
+            FullName = "Platform Super Admin",
+            IsPlatformAdmin = true,
+            IsActive = true,
+            MustChangePassword = false
+        };
+        user.PasswordHash = passwordService.HashPassword(user, "SuperSecurePass123!");
+
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var result = await authService.LoginAsync(new LoginRequest("superadmin@orai.com", "SuperSecurePass123!"), "127.0.0.1", "TestAgent");
+
+        result.Succeeded.Should().BeTrue();
+        result.AccessToken.Should().NotBeNullOrWhiteSpace();
+        result.RefreshToken.Should().NotBeNullOrWhiteSpace();
+        result.User.Should().NotBeNull();
+        result.User!.Email.Should().Be("superadmin@orai.com");
+        result.User.IsPlatformAdmin.Should().BeTrue();
+        result.Tenant.Should().BeNull();
+        result.MustChangePassword.Should().BeFalse();
+
+        var savedSession = await db.UserSessions.FirstOrDefaultAsync(s => s.UserId == user.Id);
+        savedSession.Should().NotBeNull();
+        savedSession!.RevokedAt.Should().BeNull();
+    }
+
+    [Fact]
     public async Task LoginAsync_InvalidPassword_ReturnsGenericErrorMessage()
     {
         var (authService, _, db, passwordService, _) = CreateServices(nameof(LoginAsync_InvalidPassword_ReturnsGenericErrorMessage));

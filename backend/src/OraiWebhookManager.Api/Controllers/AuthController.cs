@@ -37,7 +37,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = false,
             Secure = isProduction ? true : Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
+            SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Lax,
             Path = "/"
         });
 
@@ -158,7 +158,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Secure = isProduction ? true : Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
+            SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Lax,
             Path = "/",
             Expires = expiresAt?.UtcDateTime ?? DateTime.UtcNow.AddMinutes(15)
         };
@@ -171,7 +171,7 @@ public class AuthController : ControllerBase
             {
                 HttpOnly = true,
                 Secure = isProduction ? true : Request.IsHttps,
-                SameSite = SameSiteMode.Strict,
+                SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Strict,
                 Path = "/api/auth",
                 Expires = DateTime.UtcNow.AddDays(7)
             };
@@ -188,7 +188,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Secure = isProduction ? true : Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
+            SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Lax,
             Path = "/"
         });
 
@@ -196,7 +196,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Secure = isProduction ? true : Request.IsHttps,
-            SameSite = SameSiteMode.Strict,
+            SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Strict,
             Path = "/api/auth"
         });
     }

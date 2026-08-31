@@ -30,14 +30,15 @@ builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Antiforgery / CSRF protection
+var isDevelopment = builder.Environment.IsDevelopment();
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-XSRF-TOKEN";
     options.Cookie.Name = ".AspNetCore.Antiforgery";
     options.Cookie.Path = "/";
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.Cookie.SameSite = isDevelopment ? SameSiteMode.Lax : SameSiteMode.None;
+    options.Cookie.SecurePolicy = isDevelopment ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 });
 
 // JWT Authentication
@@ -201,9 +202,13 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 // CORS configuration
-var allowedOrigins = builder.Configuration
-    .GetSection("Cors:AllowedOrigins")
-    .Get<string[]>() ?? ["http://localhost:3000"];
+var allowedOriginsSection = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+var rawAllowedOrigins = builder.Configuration["Cors:AllowedOrigins"] ?? builder.Configuration["CORS_ALLOWED_ORIGINS"];
+var allowedOrigins = (allowedOriginsSection != null && allowedOriginsSection.Length > 0)
+    ? allowedOriginsSection
+    : (!string.IsNullOrWhiteSpace(rawAllowedOrigins)
+        ? rawAllowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        : ["http://localhost:3000"]);
 
 builder.Services.AddCors(options =>
 {
@@ -298,6 +303,9 @@ static string ReadPasswordMasked()
 }
 
 app.UseForwardedHeaders();
+
+// Global unhandled exception handler with correlation ID logging
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 // Webhook key URL/telemetry redaction middleware
 app.UseMiddleware<WebhookKeyRedactionMiddleware>();

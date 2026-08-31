@@ -81,7 +81,8 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
             });
         }).CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
-            HandleCookies = true
+            HandleCookies = true,
+            BaseAddress = environment == "Production" ? new Uri("https://localhost") : new Uri("http://localhost")
         });
     }
 
@@ -114,6 +115,70 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
 
         response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
         cookies!.Should().Contain(c => c.Contains("XSRF-TOKEN"));
+    }
+
+    [Fact]
+    public async Task CsrfAndAntiforgeryCookies_InDevelopmentHttp_HaveLaxAndNonSecurePolicy()
+    {
+        var client = CreateTestClient(environment: "Development");
+        var response = await client.GetAsync("http://localhost/api/auth/csrf");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        var cookieList = cookies!.ToList();
+
+        var xsrfCookie = cookieList.FirstOrDefault(c => c.StartsWith("XSRF-TOKEN="));
+        xsrfCookie.Should().NotBeNull();
+        xsrfCookie!.Should().ContainEquivalentOf("samesite=lax");
+        xsrfCookie.Should().ContainEquivalentOf("path=/");
+        xsrfCookie.ToLowerInvariant().Should().NotContain("secure");
+
+        var antiforgeryCookie = cookieList.FirstOrDefault(c => c.StartsWith(".AspNetCore.Antiforgery"));
+        antiforgeryCookie.Should().NotBeNull();
+        antiforgeryCookie!.Should().ContainEquivalentOf("samesite=lax");
+        antiforgeryCookie.Should().ContainEquivalentOf("path=/");
+        antiforgeryCookie.Should().ContainEquivalentOf("httponly");
+        antiforgeryCookie.ToLowerInvariant().Should().NotContain("secure");
+
+        // Subsequent login using these cookies and the XSRF token should succeed
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var token = body.GetProperty("token").GetString()!;
+        client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", token);
+
+        var loginResponse = await client.PostAsJsonAsync("http://localhost/api/auth/login", new LoginRequest("admin@orai.io", "AdminPass123!"));
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task CsrfAndAntiforgeryCookies_InProductionHttps_HaveNoneAndSecurePolicy()
+    {
+        var client = CreateTestClient(environment: "Production");
+        var response = await client.GetAsync("https://localhost/api/auth/csrf");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        var cookieList = cookies!.ToList();
+
+        var xsrfCookie = cookieList.FirstOrDefault(c => c.StartsWith("XSRF-TOKEN="));
+        xsrfCookie.Should().NotBeNull();
+        xsrfCookie!.Should().ContainEquivalentOf("samesite=none");
+        xsrfCookie.Should().ContainEquivalentOf("path=/");
+        xsrfCookie.Should().ContainEquivalentOf("secure");
+
+        var antiforgeryCookie = cookieList.FirstOrDefault(c => c.StartsWith(".AspNetCore.Antiforgery"));
+        antiforgeryCookie.Should().NotBeNull();
+        antiforgeryCookie!.Should().ContainEquivalentOf("samesite=none");
+        antiforgeryCookie.Should().ContainEquivalentOf("path=/");
+        antiforgeryCookie.Should().ContainEquivalentOf("httponly");
+        antiforgeryCookie.Should().ContainEquivalentOf("secure");
+
+        // Subsequent login using these cookies and the XSRF token over HTTPS should succeed
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var token = body.GetProperty("token").GetString()!;
+        client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", token);
+
+        var loginResponse = await client.PostAsJsonAsync("https://localhost/api/auth/login", new LoginRequest("admin@orai.io", "AdminPass123!"));
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -159,6 +224,36 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
         var response = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("admin@orai.io", "AdminPass123!"));
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Login_InvalidCredentials_ReturnsUnauthorized()
+    {
+        var (client, _) = await CreateClientWithCsrfAsync();
+
+        var response = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("invalid@orai.io", "WrongPass123!"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Be("Invalid email or password");
+    }
+
+    [Fact]
+    public async Task Login_DatabaseFailure_Returns500WithSafeJsonResponse()
+    {
+        var (client, _) = await CreateClientWithCsrfAsync(configureServices: services =>
+        {
+            var fakeFailingAuth = new ThrowingAuthService();
+            services.AddScoped<IAuthService>(_ => fakeFailingAuth);
+        });
+
+        var response = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("admin@orai.io", "AdminPass123!"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Contain("unexpected error");
+        body.TryGetProperty("traceId", out var traceId).Should().BeTrue();
+        traceId.GetString().Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -1229,5 +1324,26 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
         {
             return Task.FromResult(new PlatformSummaryDto(5, 4, 1, 1500, 25, 3, 0));
         }
+    }
+
+    private class ThrowingAuthService : IAuthService
+    {
+        public Task<LoginResult> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Simulated database timeout or connectivity failure.");
+
+        public Task<RefreshResult> RefreshSessionAsync(string plainRefreshToken, string? ipAddress, string? userAgent, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Simulated database timeout or connectivity failure.");
+
+        public Task<bool> LogoutAsync(string? plainRefreshToken, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Simulated database timeout or connectivity failure.");
+
+        public Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Simulated database timeout or connectivity failure.");
+
+        public Task<AuthSessionDto?> GetCurrentSessionAsync(Guid userId, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Simulated database timeout or connectivity failure.");
+
+        public Task<bool> BootstrapAdminAsync(string email, string password, string fullName = "Super Admin", CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Simulated database timeout or connectivity failure.");
     }
 }

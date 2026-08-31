@@ -19,7 +19,7 @@ import {
 } from "../types/auth";
 
 const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:51234/api"
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5135/api"
 ).replace(/\/+$/, "");
 
 const DEMO_TENANT_ID = process.env.NEXT_PUBLIC_DEMO_TENANT_ID || "";
