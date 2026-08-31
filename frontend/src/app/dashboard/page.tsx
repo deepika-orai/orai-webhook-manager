@@ -33,6 +33,9 @@ function DashboardContent() {
   const inspectTenantName = searchParams.get("tenantName") || undefined;
 
   const [session, setSession] = useState<AuthSession | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
   const [messagesData, setMessagesData] = useState<PagedResult<MessageListItem> | null>(null);
@@ -57,21 +60,52 @@ function DashboardContent() {
     dateTo: "",
   });
 
-  // Verify auth session
+  // Verify auth session before loading protected dashboard data
   useEffect(() => {
+    let ignore = false;
     async function checkAuth() {
       try {
         const sess = await getCurrentSessionApi();
+        if (ignore) return;
+        if (!sess || !sess.user) {
+          const isDemo = !!process.env.NEXT_PUBLIC_DEMO_TENANT_ID;
+          if (isDemo && process.env.NODE_ENV === "development") {
+            setIsAuthorized(true);
+            setAuthChecking(false);
+            return;
+          }
+          router.replace("/login");
+          return;
+        }
+
+        if (sess.user.mustChangePassword) {
+          router.replace("/change-password");
+          return;
+        }
+
+        if (sess.user.isPlatformAdmin && !inspectTenantId && !sess.tenant) {
+          router.replace("/admin");
+          return;
+        }
+
         setSession(sess);
+        setIsAuthorized(true);
+        setAuthChecking(false);
       } catch {
-        // If not in demo mode and unauthenticated, redirect to /login
+        if (ignore) return;
         const isDemo = !!process.env.NEXT_PUBLIC_DEMO_TENANT_ID;
-        if (!isDemo && !inspectTenantId) {
-          router.push("/login");
+        if (isDemo && process.env.NODE_ENV === "development") {
+          setIsAuthorized(true);
+          setAuthChecking(false);
+        } else {
+          router.replace("/login");
         }
       }
     }
     checkAuth();
+    return () => {
+      ignore = true;
+    };
   }, [router, inspectTenantId]);
 
   const loadSummaryAndEndpoints = useCallback(async () => {
@@ -113,8 +147,9 @@ function DashboardContent() {
     [inspectTenantId]
   );
 
-  // Initial load
+  // Initial load only once authentication is verified
   useEffect(() => {
+    if (!isAuthorized) return;
     let ignore = false;
     async function init() {
       if (ignore) return;
@@ -125,18 +160,18 @@ function DashboardContent() {
     return () => {
       ignore = true;
     };
-  }, [loadSummaryAndEndpoints, loadMessages, filters]);
+  }, [isAuthorized, loadSummaryAndEndpoints, loadMessages, filters]);
 
-  // Auto-refresh timer
+  // Auto-refresh timer only while authorized
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!isAuthorized || !autoRefresh) return;
     const interval = setInterval(() => {
       loadSummaryAndEndpoints();
       loadMessages(filters);
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, filters, loadSummaryAndEndpoints, loadMessages]);
+  }, [isAuthorized, autoRefresh, filters, loadSummaryAndEndpoints, loadMessages]);
 
   const handleRefreshAll = () => {
     loadSummaryAndEndpoints();
@@ -151,8 +186,17 @@ function DashboardContent() {
 
   const handleLogout = async () => {
     await logoutApi();
-    router.push("/login");
+    router.replace("/login");
   };
+
+  if (authChecking || !isAuthorized) {
+    return (
+      <OraiLoadingScene
+        title="ORAI Webhook Manager"
+        subtitle="Loading tenant telemetry dashboard..."
+      />
+    );
+  }
 
   const activeTenantName =
     inspectTenantName || session?.tenant?.name || process.env.NEXT_PUBLIC_DEMO_TENANT_NAME;
