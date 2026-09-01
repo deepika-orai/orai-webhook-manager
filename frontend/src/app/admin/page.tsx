@@ -24,6 +24,7 @@ import {
 } from "../../lib/api";
 import { OraiLoadingScene } from "../../components/OraiLoadingScene";
 import { ThemeSelector } from "../../components/ThemeSelector";
+import { formatTenantRole, formatWebhookEndpointStatus } from "../../lib/enumFormatters";
 
 export default function SuperAdminPage() {
   const router = useRouter();
@@ -949,7 +950,7 @@ export default function SuperAdminPage() {
                         <div>
                           <div className="font-semibold text-slate-900 dark:text-slate-200">{ep.name}</div>
                           <div className="text-slate-500 dark:text-slate-400 font-mono text-[11px] mt-0.5">
-                            Prefix: {ep.keyPrefix} • Status: {ep.status}
+                            Prefix: {ep.keyPrefix} • Status: {formatWebhookEndpointStatus(ep.status)}
                           </div>
                         </div>
                         <button
@@ -978,7 +979,7 @@ export default function SuperAdminPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="px-2 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-800 dark:text-slate-300 font-mono text-[11px]">
-                            {u.role}
+                            {formatTenantRole(u.role)}
                           </span>
                           {u.mustChangePassword && (
                             <span className="px-2 py-0.5 rounded bg-amber-500/15 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-[11px]">

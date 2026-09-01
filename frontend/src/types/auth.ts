@@ -12,7 +12,7 @@ export interface Tenant {
   name: string;
   slug: string;
   isActive: boolean;
-  role: string;
+  role: number | string;
 }
 
 export interface AuthSession {
@@ -54,7 +54,7 @@ export interface AdminTenantUser {
   userId: string;
   email: string;
   fullName: string;
-  role: string;
+  role: number | string;
   isActive: boolean;
   mustChangePassword: boolean;
   createdAt: string;
@@ -64,7 +64,7 @@ export interface AdminTenantEndpoint {
   endpointId: string;
   name: string;
   keyPrefix: string;
-  status: string;
+  status: number | string;
   lastReceivedAt: string | null;
   revokedAt: string | null;
   createdAt: string;

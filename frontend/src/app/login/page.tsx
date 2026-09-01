@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { loginApi } from "../../lib/api";
 import { ThemeSelector } from "../../components/ThemeSelector";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reason = searchParams?.get("reason");
+  const isSessionExpired = reason === "session_expired";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -98,6 +102,26 @@ export default function LoginPage() {
             Enterprise WhatsApp status telemetry & real-time webhook observability
           </p>
         </div>
+
+        {/* Session expired info banner */}
+        {isSessionExpired && !error && (
+          <div
+            role="status"
+            className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-3 animate-card-enter"
+          >
+            <svg
+              className="w-5 h-5 shrink-0 text-amber-500 dark:text-amber-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Your session expired. Please sign in again.</span>
+          </div>
+        )}
 
         {/* Error alert */}
         {error && (
@@ -224,5 +248,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F8F9FD] dark:bg-[#0B0F19]" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

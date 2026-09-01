@@ -26,9 +26,63 @@ const DEMO_TENANT_ID = process.env.NEXT_PUBLIC_DEMO_TENANT_ID || "";
 
 let cachedCsrfToken: string | null = null;
 let csrfRefreshPromise: Promise<string> | null = null;
+let isRedirectingToLogin = false;
 
 export function clearCsrfToken(): void {
   cachedCsrfToken = null;
+}
+
+export function _resetSessionExpiredState(): void {
+  isRedirectingToLogin = false;
+}
+
+export function isExcludedFromSessionExpiredRedirect(url: string): boolean {
+  try {
+    const parsed = new URL(url, "http://localhost");
+    const pathname = parsed.pathname.toLowerCase();
+    const excludedPatterns = [
+      "/auth/login",
+      "/auth/csrf",
+      "/auth/refresh",
+      "/auth/logout",
+    ];
+    return excludedPatterns.some(
+      (pattern) => pathname.endsWith(pattern) || pathname.includes(`${pattern}/`)
+    );
+  } catch {
+    const lower = url.toLowerCase();
+    return (
+      lower.includes("/auth/login") ||
+      lower.includes("/auth/csrf") ||
+      lower.includes("/auth/refresh") ||
+      lower.includes("/auth/logout")
+    );
+  }
+}
+
+export function handleSessionExpiredRedirect(): void {
+  if (typeof window === "undefined") return;
+
+  const currentPath = window.location.pathname || "";
+  if (currentPath === "/login" || currentPath.startsWith("/login/")) {
+    return;
+  }
+
+  if (isRedirectingToLogin) {
+    return;
+  }
+
+  isRedirectingToLogin = true;
+  clearCsrfToken();
+
+  try {
+    window.location.replace("/login?reason=session_expired");
+  } catch {
+    if (window.location) {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/login?reason=session_expired";
+    }
+  }
 }
 
 export function getCsrfTokenFromCookie(): string | null {
@@ -163,26 +217,32 @@ async function requestWithRefresh<T>(
     }
   }
 
-  if (response.status === 401 && !isAuthRetry && !url.includes("/auth/")) {
-    try {
-      const csrfToken = await ensureCsrfToken();
-      const refreshHeaders: Record<string, string> = {};
-      if (csrfToken) {
-        refreshHeaders["X-XSRF-TOKEN"] = csrfToken;
-      }
+  if (response.status === 401) {
+    if (!isAuthRetry && !isExcludedFromSessionExpiredRedirect(url)) {
+      try {
+        const csrfToken = await ensureCsrfToken();
+        const refreshHeaders: Record<string, string> = {};
+        if (csrfToken) {
+          refreshHeaders["X-XSRF-TOKEN"] = csrfToken;
+        }
 
-      const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: "POST",
-        credentials: "include",
-        headers: getHeaders(refreshHeaders),
-      });
+        const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+          headers: getHeaders(refreshHeaders),
+        });
 
-      if (refreshRes.ok) {
-        await ensureCsrfToken(true);
-        return requestWithRefresh<T>(url, options, true, isCsrfRetry);
+        if (refreshRes.ok) {
+          await ensureCsrfToken(true);
+          return requestWithRefresh<T>(url, options, true, isCsrfRetry);
+        }
+      } catch {
+        // Refresh failed
       }
-    } catch {
-      // Refresh failed
+    }
+
+    if (!isExcludedFromSessionExpiredRedirect(url)) {
+      handleSessionExpiredRedirect();
     }
   }
 
@@ -528,6 +588,10 @@ export async function exportStatusLogsCsvApi(
       }
     } catch {
       // Refresh failed
+    }
+
+    if (res.status === 401) {
+      handleSessionExpiredRedirect();
     }
   }
 

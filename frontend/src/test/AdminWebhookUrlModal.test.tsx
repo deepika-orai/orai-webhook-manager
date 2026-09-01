@@ -207,4 +207,120 @@ describe("SuperAdminPage Webhook URL Display and Copy Modals", () => {
       "https://oraiapi.azurewebsites.net/api/webhooks/whatsapp/whk_live_rotated_super_secret_key_456"
     );
   });
+
+  it("replaces raw numeric enum values (0, 1, 2) and unknown values with meaningful labels in inspection modal", async () => {
+    const mockNumericTenantSummary: AdminTenantSummary = {
+      id: "tenant-1",
+      name: "Acme Enterprise",
+      slug: "acme-enterprise",
+      isActive: true,
+      createdAt: "2026-08-25T10:00:00Z",
+      updatedAt: "2026-08-25T10:00:00Z",
+      users: [
+        {
+          userId: "u-1",
+          email: "admin@acme.com",
+          fullName: "Alice Admin",
+          role: 0, // TenantAdmin
+          isActive: true,
+          mustChangePassword: false,
+          createdAt: "2026-08-25T10:00:00Z",
+        },
+        {
+          userId: "u-2",
+          email: "member@acme.com",
+          fullName: "Bob Member",
+          role: 1, // Member
+          isActive: true,
+          mustChangePassword: false,
+          createdAt: "2026-08-25T10:00:00Z",
+        },
+        {
+          userId: "u-3",
+          email: "viewer@acme.com",
+          fullName: "Charlie Viewer",
+          role: 2, // ReadOnly
+          isActive: true,
+          mustChangePassword: false,
+          createdAt: "2026-08-25T10:00:00Z",
+        },
+        {
+          userId: "u-4",
+          email: "unknown@acme.com",
+          fullName: "Dana Unknown",
+          role: 99, // Unknown
+          isActive: true,
+          mustChangePassword: false,
+          createdAt: "2026-08-25T10:00:00Z",
+        },
+      ],
+      endpoints: [
+        {
+          endpointId: "ep-0",
+          name: "Primary Ingestion",
+          keyPrefix: "whk_0",
+          status: 0, // Active
+          lastReceivedAt: null,
+          revokedAt: null,
+          createdAt: "2026-08-25T10:00:00Z",
+        },
+        {
+          endpointId: "ep-1",
+          name: "Secondary Ingestion",
+          keyPrefix: "whk_1",
+          status: 1, // Suspended
+          lastReceivedAt: null,
+          revokedAt: null,
+          createdAt: "2026-08-25T10:00:00Z",
+        },
+        {
+          endpointId: "ep-2",
+          name: "Legacy Ingestion",
+          keyPrefix: "whk_2",
+          status: 2, // Revoked
+          lastReceivedAt: null,
+          revokedAt: null,
+          createdAt: "2026-08-25T10:00:00Z",
+        },
+        {
+          endpointId: "ep-3",
+          name: "Future Ingestion",
+          keyPrefix: "whk_3",
+          status: 99, // Unknown
+          lastReceivedAt: null,
+          revokedAt: null,
+          createdAt: "2026-08-25T10:00:00Z",
+        },
+      ],
+      totalMessages: 100,
+      failedMessages: 0,
+    };
+
+    vi.spyOn(api, "getAdminTenantSummaryApi").mockResolvedValue(mockNumericTenantSummary);
+
+    render(<SuperAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Acme Enterprise")).toBeInTheDocument();
+    });
+
+    // Open inspection modal
+    fireEvent.click(screen.getByTitle("View Endpoints and Users"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Primary Ingestion")).toBeInTheDocument();
+    });
+
+    // Webhook endpoint status labels formatted
+    expect(screen.getByText("Prefix: whk_0 • Status: Active")).toBeInTheDocument();
+    expect(screen.getByText("Prefix: whk_1 • Status: Suspended")).toBeInTheDocument();
+    expect(screen.getByText("Prefix: whk_2 • Status: Revoked")).toBeInTheDocument();
+    expect(screen.getByText("Prefix: whk_3 • Status: Unknown")).toBeInTheDocument();
+
+    // Client user role badges formatted
+    expect(screen.getByText("Tenant Admin")).toBeInTheDocument();
+    expect(screen.getByText("Member")).toBeInTheDocument();
+    expect(screen.getByText("Read Only")).toBeInTheDocument();
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+  });
 });
