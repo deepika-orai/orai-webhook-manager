@@ -795,6 +795,7 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
             body!.Slug.Should().Be("stripe-corp");
             body.TempPassword.Should().NotBeNullOrWhiteSpace();
             body.WebhookPlainKey.Should().NotBeNullOrWhiteSpace();
+            body.WebhookUrl.Should().Be($"http://localhost:5135/api/webhooks/whatsapp/{body.WebhookPlainKey}");
         }
     }
 
@@ -947,6 +948,9 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
             // Rotate Key with CSRF -> 200
             var rotateRes2 = await client.PostAsync($"/api/admin/webhook-endpoints/{endpointId}/rotate-key", null);
             rotateRes2.StatusCode.Should().Be(HttpStatusCode.OK);
+            var rotateBody = await rotateRes2.Content.ReadFromJsonAsync<RotateKeyResult>();
+            rotateBody.Should().NotBeNull();
+            rotateBody!.WebhookUrl.Should().Be($"http://localhost:5135/api/webhooks/whatsapp/{rotateBody.PlainKey}");
         }
     }
 
@@ -1302,7 +1306,7 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
                 "TempPassword123!",
                 Guid.NewGuid(),
                 "Default WhatsApp",
-                $"/api/webhooks/whatsapp?key=whk_demo12345",
+                "http://localhost:5135/api/webhooks/whatsapp/whk_demo12345",
                 "whk_demo12345",
                 "whk_demo"
             ));
@@ -1317,7 +1321,7 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
 
         public Task<RotateKeyResult> RotateWebhookKeyAsync(Guid endpointId, Guid adminUserId, string? ipAddress, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(new RotateKeyResult(endpointId, "whk_newrotated123", "whk_newr"));
+            return Task.FromResult(new RotateKeyResult(endpointId, "whk_newrotated123", "whk_newr", "http://localhost:5135/api/webhooks/whatsapp/whk_newrotated123"));
         }
 
         public Task<PlatformSummaryDto> GetPlatformSummaryAsync(CancellationToken cancellationToken = default)

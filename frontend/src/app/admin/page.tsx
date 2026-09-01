@@ -775,15 +775,15 @@ export default function SuperAdminPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-slate-500 dark:text-slate-400">Default Webhook Ingestion URL & Key:</span>
+                  <span className="text-slate-500 dark:text-slate-400">New Webhook URL:</span>
                   <button
                     onClick={() => copyToClipboard(createdCredentials.webhookUrl, "url")}
                     className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-medium cursor-pointer"
                   >
-                    {copyFeedback === "url" ? "Copied!" : "Copy"}
+                    {copyFeedback === "url" ? "Copied!" : "Copy Webhook URL"}
                   </button>
                 </div>
-                <div className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-slate-700 dark:text-slate-300 text-xs break-all">
+                <div className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-slate-700 dark:text-slate-300 text-xs break-all select-all">
                   {createdCredentials.webhookUrl}
                 </div>
               </div>
@@ -1008,37 +1008,54 @@ export default function SuperAdminPage() {
       {/* ----------------- Key Rotation Result Modal ----------------- */}
       {rotatedKeyData && (
         <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-cyan-200 dark:border-cyan-500/40 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-5 animate-card-enter">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Webhook Key Rotated Successfully</h3>
-            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-              ⚠️ Save this new plain webhook key now. It will not be shown again.
-            </p>
-            <div className="space-y-3 text-xs">
+          <div className="bg-white dark:bg-slate-900 border border-cyan-200 dark:border-cyan-500/40 rounded-3xl w-full max-w-xl p-6 sm:p-7 shadow-2xl space-y-6 animate-card-enter">
+            <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 flex items-center justify-center border border-cyan-500/30 font-bold">
+                ✓
+              </div>
               <div>
-                <span className="text-slate-500 dark:text-slate-400">Key Prefix:</span>
-                <div className="font-mono text-slate-800 dark:text-slate-200 mt-1">{rotatedKeyData.keyPrefix}</div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Webhook Key Rotated Successfully</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">One-time webhook ingestion URL update</p>
+              </div>
+            </div>
+
+            {/* Critical Security Warning */}
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-3">
+              <span className="text-lg">⚠️</span>
+              <div>
+                <span className="font-bold block mb-0.5">Important Security Notice:</span>
+                This webhook URL will only be displayed <strong>ONCE</strong>. Please copy and update your Meta WhatsApp webhook settings immediately before closing this window.
+              </div>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <span className="text-slate-500 dark:text-slate-400 block mb-1">Key Prefix:</span>
+                <div className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-slate-800 dark:text-slate-200">
+                  {rotatedKeyData.keyPrefix}
+                </div>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-slate-500 dark:text-slate-400">New Plain Webhook Key:</span>
+                  <span className="text-slate-500 dark:text-slate-400">New Webhook URL:</span>
                   <button
-                    onClick={() => copyToClipboard(rotatedKeyData.plainKey, "rotkey")}
+                    onClick={() => copyToClipboard(rotatedKeyData.webhookUrl, "roturl")}
                     className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-medium cursor-pointer"
                   >
-                    {copyFeedback === "rotkey" ? "Copied!" : "Copy"}
+                    {copyFeedback === "roturl" ? "Copied!" : "Copy Webhook URL"}
                   </button>
                 </div>
-                <div className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-cyan-300 dark:border-cyan-500/40 font-mono text-cyan-700 dark:text-cyan-400 font-bold text-sm select-all break-all">
-                  {rotatedKeyData.plainKey}
+                <div className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-cyan-300 dark:border-cyan-500/40 font-mono text-cyan-700 dark:text-cyan-400 font-bold text-xs select-all break-all">
+                  {rotatedKeyData.webhookUrl}
                 </div>
               </div>
             </div>
             <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
               <button
                 onClick={() => setRotatedKeyData(null)}
-                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs cursor-pointer shadow-lg shadow-purple-600/25"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs cursor-pointer shadow-lg shadow-purple-600/25"
               >
-                Done
+                I have securely updated this webhook URL
               </button>
             </div>
           </div>

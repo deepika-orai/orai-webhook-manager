@@ -202,13 +202,33 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 // CORS configuration
-var allowedOriginsSection = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
-var rawAllowedOrigins = builder.Configuration["Cors:AllowedOrigins"] ?? builder.Configuration["CORS_ALLOWED_ORIGINS"];
-var allowedOrigins = (allowedOriginsSection != null && allowedOriginsSection.Length > 0)
-    ? allowedOriginsSection
-    : (!string.IsNullOrWhiteSpace(rawAllowedOrigins)
-        ? rawAllowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        : ["http://localhost:3000"]);
+var envCorsOrigins = builder.Configuration["CORS_ALLOWED_ORIGINS"];
+var appsettingsCorsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+
+IEnumerable<string> rawOrigins;
+if (!string.IsNullOrWhiteSpace(envCorsOrigins))
+{
+    rawOrigins = envCorsOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
+else if (appsettingsCorsOrigins != null && appsettingsCorsOrigins.Length > 0)
+{
+    rawOrigins = appsettingsCorsOrigins;
+}
+else
+{
+    rawOrigins = ["http://localhost:3000"];
+}
+
+var allowedOrigins = rawOrigins
+    .Select(origin => origin?.Trim().TrimEnd('/') ?? string.Empty)
+    .Where(origin => !string.IsNullOrEmpty(origin))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
+if (allowedOrigins.Length == 0)
+{
+    allowedOrigins = ["http://localhost:3000"];
+}
 
 builder.Services.AddCors(options =>
 {

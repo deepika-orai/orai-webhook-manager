@@ -129,7 +129,7 @@ public record RotateKeyResult(
     Guid EndpointId,
     string PlainKey,
     string KeyPrefix,
-    string? WebhookUrl = null
+    string WebhookUrl
 );
 
 public record AdminTenantFilterParams(

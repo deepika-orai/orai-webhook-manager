@@ -24,7 +24,10 @@ public class AuthAndAdminServiceTests
         return new PlatformAdminDbContext(options);
     }
 
-    private (AuthService authService, AdminService adminService, PlatformAdminDbContext dbContext, PasswordService passwordService, JwtTokenService jwtService) CreateServices(string dbName)
+    private (AuthService authService, AdminService adminService, PlatformAdminDbContext dbContext, PasswordService passwordService, JwtTokenService jwtService) CreateServices(
+        string dbName,
+        string? publicBaseUrl = "http://localhost:5135",
+        string environment = "Development")
     {
         var db = CreateDbContext(dbName);
         var jwtOptions = Options.Create(new JwtOptions
@@ -40,6 +43,7 @@ public class AuthAndAdminServiceTests
         var jwtService = new JwtTokenService(jwtOptions);
         var webhookKeyService = new WebhookKeyService();
         var cacheInvalidator = new FakeCacheInvalidator();
+        var hostEnvironment = new FakeHostEnvironment { EnvironmentName = environment };
 
         var authService = new AuthService(
             db,
@@ -51,7 +55,7 @@ public class AuthAndAdminServiceTests
 
         var webhookOptions = Options.Create(new WebhookIngestionOptions
         {
-            PublicBaseUrl = "http://localhost:5135"
+            PublicBaseUrl = publicBaseUrl!
         });
 
         var adminService = new AdminService(
@@ -60,10 +64,19 @@ public class AuthAndAdminServiceTests
             webhookKeyService,
             cacheInvalidator,
             webhookOptions,
+            hostEnvironment,
             NullLogger<AdminService>.Instance
         );
 
         return (authService, adminService, db, passwordService, jwtService);
+    }
+
+    private class FakeHostEnvironment : Microsoft.Extensions.Hosting.IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Development";
+        public string ApplicationName { get; set; } = "OraiWebhookManager";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 
     private class FakeCacheInvalidator : ICacheInvalidator
@@ -462,5 +475,110 @@ public class AuthAndAdminServiceTests
 
         var endpoint = await db.WebhookEndpoints.FindAsync(createResult.WebhookEndpointId);
         endpoint!.KeyPrefix.Should().Be(rotateResult.KeyPrefix);
+        rotateResult.WebhookUrl.Should().Be($"http://localhost:5135/api/webhooks/whatsapp/{rotateResult.PlainKey}");
+    }
+
+    [Fact]
+    public async Task AdminService_CustomAzureUrl_WithTrailingSlashes_NormalizesCorrectly()
+    {
+        var azureBaseUrl = "https://oraiapi.azurewebsites.net///";
+        var (_, adminService, _, _, _) = CreateServices(
+            nameof(AdminService_CustomAzureUrl_WithTrailingSlashes_NormalizesCorrectly),
+            publicBaseUrl: azureBaseUrl,
+            environment: "Production"
+        );
+
+        var adminId = Guid.NewGuid();
+        var createResult = await adminService.CreateTenantAsync(
+            new CreateTenantRequest("Azure Tenant", "azure-tenant", "admin@azure.com", "Azure Admin"),
+            adminId,
+            "127.0.0.1"
+        );
+
+        createResult.WebhookUrl.Should().Be($"https://oraiapi.azurewebsites.net/api/webhooks/whatsapp/{createResult.WebhookPlainKey}");
+        createResult.WebhookUrl.Should().NotContain("//api");
+
+        var rotateResult = await adminService.RotateWebhookKeyAsync(createResult.WebhookEndpointId, adminId, "127.0.0.1");
+        rotateResult.WebhookUrl.Should().Be($"https://oraiapi.azurewebsites.net/api/webhooks/whatsapp/{rotateResult.PlainKey}");
+        rotateResult.WebhookUrl.Should().NotContain("//api");
+    }
+
+    [Fact]
+    public async Task AdminService_Production_MissingPublicBaseUrl_ThrowsConfigurationError()
+    {
+        var (_, adminService, _, _, _) = CreateServices(
+            nameof(AdminService_Production_MissingPublicBaseUrl_ThrowsConfigurationError),
+            publicBaseUrl: "",
+            environment: "Production"
+        );
+
+        var adminId = Guid.NewGuid();
+        var act = async () => await adminService.CreateTenantAsync(
+            new CreateTenantRequest("Prod Tenant", "prod-tenant", "admin@prod.com", "Prod Admin"),
+            adminId,
+            "127.0.0.1"
+        );
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*'WebhookIngestion:PublicBaseUrl' is required in non-development environments.*");
+    }
+
+    [Fact]
+    public async Task AdminService_Production_HttpUrl_ThrowsHttpsRequiredError()
+    {
+        var (_, adminService, _, _, _) = CreateServices(
+            nameof(AdminService_Production_HttpUrl_ThrowsHttpsRequiredError),
+            publicBaseUrl: "http://oraiapi.azurewebsites.net",
+            environment: "Production"
+        );
+
+        var adminId = Guid.NewGuid();
+        var act = async () => await adminService.CreateTenantAsync(
+            new CreateTenantRequest("Prod Tenant", "prod-tenant", "admin@prod.com", "Prod Admin"),
+            adminId,
+            "127.0.0.1"
+        );
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*'WebhookIngestion:PublicBaseUrl' must use HTTPS in production.*");
+    }
+
+    [Fact]
+    public async Task AdminService_InvalidUrlFormat_ThrowsConfigurationError()
+    {
+        var (_, adminService, _, _, _) = CreateServices(
+            nameof(AdminService_InvalidUrlFormat_ThrowsConfigurationError),
+            publicBaseUrl: "not-a-valid-url",
+            environment: "Development"
+        );
+
+        var adminId = Guid.NewGuid();
+        var act = async () => await adminService.CreateTenantAsync(
+            new CreateTenantRequest("Dev Tenant", "dev-tenant", "admin@dev.com", "Dev Admin"),
+            adminId,
+            "127.0.0.1"
+        );
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*must be a valid absolute HTTP or HTTPS URL.*");
+    }
+
+    [Fact]
+    public async Task AdminService_Development_MissingPublicBaseUrl_FallsBackToLocalhost()
+    {
+        var (_, adminService, _, _, _) = CreateServices(
+            nameof(AdminService_Development_MissingPublicBaseUrl_FallsBackToLocalhost),
+            publicBaseUrl: "",
+            environment: "Development"
+        );
+
+        var adminId = Guid.NewGuid();
+        var createResult = await adminService.CreateTenantAsync(
+            new CreateTenantRequest("Dev Tenant", "dev-tenant", "admin@dev.com", "Dev Admin"),
+            adminId,
+            "127.0.0.1"
+        );
+
+        createResult.WebhookUrl.Should().Be($"http://localhost:5135/api/webhooks/whatsapp/{createResult.WebhookPlainKey}");
     }
 }

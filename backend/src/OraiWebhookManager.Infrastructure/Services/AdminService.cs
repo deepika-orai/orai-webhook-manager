@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OraiWebhookManager.Application.Interfaces;
@@ -18,6 +19,7 @@ public class AdminService : IAdminService
     private readonly IWebhookKeyService _webhookKeyService;
     private readonly ICacheInvalidator _cacheInvalidator;
     private readonly WebhookIngestionOptions _webhookOptions;
+    private readonly IHostEnvironment _hostEnvironment;
     private readonly ILogger<AdminService> _logger;
 
     public AdminService(
@@ -26,6 +28,7 @@ public class AdminService : IAdminService
         IWebhookKeyService webhookKeyService,
         ICacheInvalidator cacheInvalidator,
         IOptions<WebhookIngestionOptions> webhookOptions,
+        IHostEnvironment hostEnvironment,
         ILogger<AdminService> logger)
     {
         _dbContext = dbContext;
@@ -33,6 +36,7 @@ public class AdminService : IAdminService
         _webhookKeyService = webhookKeyService;
         _cacheInvalidator = cacheInvalidator;
         _webhookOptions = webhookOptions.Value;
+        _hostEnvironment = hostEnvironment;
         _logger = logger;
     }
 
@@ -274,12 +278,7 @@ public class AdminService : IAdminService
 
         _logger.LogInformation("Tenant {TenantSlug} successfully onboarded by Admin {AdminId}", tenant.Slug, adminUserId);
 
-        var baseUrl = (_webhookOptions.PublicBaseUrl ?? string.Empty).Trim().TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            baseUrl = "http://localhost:5135";
-        }
-        var webhookUrl = $"{baseUrl}/api/webhooks/whatsapp/{keyGen.PlainKey}";
+        var webhookUrl = BuildWebhookUrl(keyGen.PlainKey);
 
         return new CreateTenantResult(
             tenant.Id,
@@ -310,6 +309,11 @@ public class AdminService : IAdminService
         }
 
         var oldStatus = tenant.IsActive;
+        if (oldStatus == isActive)
+        {
+            return true;
+        }
+
         tenant.IsActive = isActive;
         tenant.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -357,6 +361,12 @@ public class AdminService : IAdminService
         string? ipAddress,
         CancellationToken cancellationToken = default)
     {
+        var tenant = await _dbContext.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
+        if (tenant == null)
+        {
+            throw new InvalidOperationException("Tenant not found.");
+        }
+
         var membership = await _dbContext.TenantMemberships
             .Include(m => m.User)
             .Where(m => m.TenantId == tenantId && m.Role == TenantRole.TenantAdmin && m.User != null)
@@ -378,7 +388,6 @@ public class AdminService : IAdminService
 
         var user = membership.User;
         var tempPassword = _passwordService.GenerateSecurePassword(16);
-
         user.PasswordHash = _passwordService.HashPassword(user, tempPassword);
         user.MustChangePassword = true;
         user.AuthVersion++;
@@ -452,14 +461,48 @@ public class AdminService : IAdminService
 
         _logger.LogInformation("Webhook endpoint {EndpointId} key rotated by Admin {AdminId}", endpoint.Id, adminUserId);
 
-        var baseUrl = (_webhookOptions.PublicBaseUrl ?? string.Empty).Trim().TrimEnd('/');
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            baseUrl = "http://localhost:5135";
-        }
-        var webhookUrl = $"{baseUrl}/api/webhooks/whatsapp/{keyGen.PlainKey}";
+        var webhookUrl = BuildWebhookUrl(keyGen.PlainKey);
 
         return new RotateKeyResult(endpoint.Id, keyGen.PlainKey, keyGen.KeyPrefix, webhookUrl);
+    }
+
+    private string BuildWebhookUrl(string plainKey)
+    {
+        var rawBaseUrl = _webhookOptions.PublicBaseUrl;
+        string baseUrl;
+
+        if (string.IsNullOrWhiteSpace(rawBaseUrl))
+        {
+            if (_hostEnvironment.IsDevelopment())
+            {
+                baseUrl = "http://localhost:5135";
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "Configuration error: 'WebhookIngestion:PublicBaseUrl' is required in non-development environments.");
+            }
+        }
+        else
+        {
+            var trimmed = rawBaseUrl.Trim();
+            if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                throw new InvalidOperationException(
+                    $"Configuration error: 'WebhookIngestion:PublicBaseUrl' ('{rawBaseUrl}') must be a valid absolute HTTP or HTTPS URL.");
+            }
+
+            if (_hostEnvironment.IsProduction() && uri.Scheme != Uri.UriSchemeHttps)
+            {
+                throw new InvalidOperationException(
+                    $"Configuration error: 'WebhookIngestion:PublicBaseUrl' must use HTTPS in production. Configured value was '{rawBaseUrl}'.");
+            }
+
+            baseUrl = trimmed.TrimEnd('/');
+        }
+
+        return $"{baseUrl}/api/webhooks/whatsapp/{plainKey}";
     }
 
     public async Task<PlatformSummaryDto> GetPlatformSummaryAsync(CancellationToken cancellationToken = default)
