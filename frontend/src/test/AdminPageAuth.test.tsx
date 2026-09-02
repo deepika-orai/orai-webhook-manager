@@ -168,4 +168,20 @@ describe("SuperAdminPage Authorization & Data Loading", () => {
       expect(mockReplace).toHaveBeenCalledWith("/dashboard");
     });
   });
+
+  it("unauthenticated user cannot access /admin and redirects to login with sign_in_required", async () => {
+    const unauthError = new Error("Unauthorized") as Error & { status?: number };
+    unauthError.status = 401;
+
+    const getCurrentSessionSpy = vi.spyOn(api, "getCurrentSessionApi").mockRejectedValue(unauthError);
+
+    render(<SuperAdminPage />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/login?reason=sign_in_required");
+    });
+
+    expect(getCurrentSessionSpy).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("ORAI Super Admin")).not.toBeInTheDocument();
+  });
 });

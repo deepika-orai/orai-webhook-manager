@@ -41,9 +41,45 @@ const API_BASE_URL = resolveApiBaseUrl();
 
 const DEMO_TENANT_ID = process.env.NEXT_PUBLIC_DEMO_TENANT_ID || "";
 
+const AUTH_MARKER_KEY = "orai_auth_marker";
+let inMemoryAuthMarker = false;
 let cachedCsrfToken: string | null = null;
 let csrfRefreshPromise: Promise<string> | null = null;
 let isRedirectingToLogin = false;
+let isLoggingOut = false;
+
+export function hasAuthMarker(): boolean {
+  if (typeof window === "undefined") return inMemoryAuthMarker;
+  try {
+    const val =
+      window.localStorage.getItem(AUTH_MARKER_KEY) ||
+      window.sessionStorage.getItem(AUTH_MARKER_KEY);
+    return val === "true" || inMemoryAuthMarker;
+  } catch {
+    return inMemoryAuthMarker;
+  }
+}
+
+export function setAuthMarker(): void {
+  inMemoryAuthMarker = true;
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(AUTH_MARKER_KEY, "true");
+  } catch {
+    // Storage access error or disabled
+  }
+}
+
+export function clearAuthMarker(): void {
+  inMemoryAuthMarker = false;
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(AUTH_MARKER_KEY);
+    window.sessionStorage.removeItem(AUTH_MARKER_KEY);
+  } catch {
+    // Storage access error or disabled
+  }
+}
 
 export function clearCsrfToken(): void {
   cachedCsrfToken = null;
@@ -51,6 +87,8 @@ export function clearCsrfToken(): void {
 
 export function _resetSessionExpiredState(): void {
   isRedirectingToLogin = false;
+  isLoggingOut = false;
+  clearAuthMarker();
 }
 
 export function isExcludedFromSessionExpiredRedirect(url: string): boolean {
@@ -85,12 +123,13 @@ export function handleSessionExpiredRedirect(): void {
     return;
   }
 
-  if (isRedirectingToLogin) {
+  if (isRedirectingToLogin || isLoggingOut) {
     return;
   }
 
   isRedirectingToLogin = true;
   clearCsrfToken();
+  clearAuthMarker();
 
   try {
     window.location.replace("/login?reason=session_expired");
@@ -237,6 +276,14 @@ async function requestWithRefresh<T>(
   }
 
   if (response.status === 401) {
+    if (isLoggingOut) {
+      const error = new Error("Logged out") as Error & { status?: number };
+      error.status = 401;
+      throw error;
+    }
+
+    const wasAuthenticated = hasAuthMarker();
+
     if (!isAuthRetry && !isExcludedFromSessionExpiredRedirect(url)) {
       try {
         const csrfToken = await ensureCsrfToken();
@@ -253,6 +300,7 @@ async function requestWithRefresh<T>(
         });
 
         if (refreshRes.ok) {
+          setAuthMarker();
           await ensureCsrfToken(true);
           return requestWithRefresh<T>(url, options, true, isCsrfRetry);
         }
@@ -262,7 +310,9 @@ async function requestWithRefresh<T>(
     }
 
     if (!isExcludedFromSessionExpiredRedirect(url)) {
-      handleSessionExpiredRedirect();
+      if (wasAuthenticated) {
+        handleSessionExpiredRedirect();
+      }
     }
   }
 
@@ -346,7 +396,9 @@ export async function loginApi(email: string, password: string): Promise<LoginRe
 
   const result: LoginResponse = await res.json();
 
-  // After successful login: clear anonymous CSRF token and fetch fresh authenticated token
+  // After successful login: set client auth marker and refresh CSRF
+  setAuthMarker();
+  isLoggingOut = false;
   cachedCsrfToken = null;
   await fetchCsrfToken();
 
@@ -360,6 +412,10 @@ export async function refreshApi(): Promise<LoginResponse> {
 }
 
 export async function logoutApi(): Promise<{ message: string }> {
+  isLoggingOut = true;
+  clearAuthMarker();
+  clearCsrfToken();
+
   const csrfToken = await ensureCsrfToken();
   const headers: Record<string, string> = {};
   if (csrfToken) {
@@ -397,8 +453,9 @@ export async function logoutApi(): Promise<{ message: string }> {
     }
   }
 
-  // Clear cached token only after the response
+  // Clear cached token and marker only after the response
   cachedCsrfToken = null;
+  clearAuthMarker();
 
   return res.ok ? res.json() : { message: "Logged out" };
 }
@@ -418,7 +475,11 @@ export async function changePasswordApi(
 }
 
 export async function getCurrentSessionApi(): Promise<AuthSession> {
-  return requestWithRefresh<AuthSession>(`${API_BASE_URL}/auth/me`);
+  const session = await requestWithRefresh<AuthSession>(`${API_BASE_URL}/auth/me`);
+  if (session && session.user) {
+    setAuthMarker();
+  }
+  return session;
 }
 
 // ---------------- Admin APIs ----------------
@@ -588,6 +649,12 @@ export async function exportStatusLogsCsvApi(
   });
 
   if (res.status === 401) {
+    if (isLoggingOut) {
+      const error = new Error("Logged out") as Error & { status?: number };
+      error.status = 401;
+      throw error;
+    }
+    const wasAuthenticated = hasAuthMarker();
     try {
       const csrfToken = await ensureCsrfToken();
       const refreshHeaders: Record<string, string> = {};
@@ -601,6 +668,7 @@ export async function exportStatusLogsCsvApi(
         headers: getHeaders(refreshHeaders),
       });
       if (refreshRes.ok) {
+        setAuthMarker();
         await ensureCsrfToken(true);
         res = await fetch(url, {
           method: "GET",
@@ -614,7 +682,9 @@ export async function exportStatusLogsCsvApi(
     }
 
     if (res.status === 401) {
-      handleSessionExpiredRedirect();
+      if (wasAuthenticated) {
+        handleSessionExpiredRedirect();
+      }
     }
   }
 

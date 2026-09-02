@@ -49,10 +49,13 @@ describe("Centralized 401 Session Handling & Redirect Guard", () => {
     vi.restoreAllMocks();
   });
 
-  it("protected API 401 triggers refresh attempt, and on refresh failure triggers exactly one redirect", async () => {
+  it("genuine session expiration: previously authenticated session triggers refresh attempt, and on refresh failure triggers redirect to /login?reason=session_expired", async () => {
+    // 1. Mark session as previously authenticated
+    api.setAuthMarker();
+
     const fetchMock = vi.fn();
 
-    // 1. Initial protected request returns 401
+    // 2. Initial protected request returns 401
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -60,7 +63,7 @@ describe("Centralized 401 Session Handling & Redirect Guard", () => {
       json: async () => ({ error: "Token expired" }),
     });
 
-    // 2. Refresh attempt returns 401 (refresh failed)
+    // 3. Refresh attempt returns 401 (refresh failed)
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -85,9 +88,81 @@ describe("Centralized 401 Session Handling & Redirect Guard", () => {
     // Verify redirected once to /login?reason=session_expired
     expect(window.location.replace).toHaveBeenCalledTimes(1);
     expect(window.location.replace).toHaveBeenCalledWith("/login?reason=session_expired");
+    // Auth marker should be cleared
+    expect(api.hasAuthMarker()).toBe(false);
+  });
+
+  it("logged-out direct access: 401 on protected endpoint without prior auth marker does NOT trigger session_expired redirect", async () => {
+    // Session is not authenticated (clean/logged out state)
+    api.clearAuthMarker();
+
+    const fetchMock = vi.fn();
+
+    // Initial protected request returns 401
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: async () => ({ error: "Unauthorized" }),
+    });
+
+    // Refresh attempt also returns 401
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: async () => ({ error: "No refresh token" }),
+    });
+
+    global.fetch = fetchMock;
+
+    await expect(api.getDashboardSummary()).rejects.toThrow();
+
+    // Must NOT redirect to /login?reason=session_expired
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  it("explicit logout: clears auth marker and subsequent 401s do NOT trigger session_expired redirect", async () => {
+    api.setAuthMarker();
+    expect(api.hasAuthMarker()).toBe(true);
+
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("/auth/logout")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ message: "Logged out" }),
+        };
+      }
+      if (url.includes("/auth/csrf")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ token: "csrf-token" }),
+        };
+      }
+      return {
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        json: async () => ({ error: "Unauthorized" }),
+      };
+    });
+
+    global.fetch = fetchMock;
+
+    await api.logoutApi();
+
+    // Auth marker is removed
+    expect(api.hasAuthMarker()).toBe(false);
+
+    // Subsequent API call returning 401 should not redirect to session_expired
+    await expect(api.getDashboardSummary()).rejects.toThrow();
+    expect(window.location.replace).not.toHaveBeenCalled();
   });
 
   it("protected API 401 does NOT redirect if refresh succeeds and retry succeeds", async () => {
+    api.setAuthMarker();
     let dashboardAttempts = 0;
     const fetchMock = vi.fn().mockImplementation(async (url: string) => {
       if (url.includes("/auth/refresh")) {
@@ -144,9 +219,12 @@ describe("Centralized 401 Session Handling & Redirect Guard", () => {
     expect(summary.totalMessages).toBe(10);
     expect(dashboardAttempts).toBe(2);
     expect(window.location.replace).not.toHaveBeenCalled();
+    expect(api.hasAuthMarker()).toBe(true);
   });
 
-  it("multiple concurrent failing protected API requests trigger exactly one redirect", async () => {
+  it("multiple concurrent failing protected API requests for authenticated session trigger exactly one redirect", async () => {
+    api.setAuthMarker();
+
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
@@ -188,6 +266,8 @@ describe("Centralized 401 Session Handling & Redirect Guard", () => {
   });
 
   it("already being on /login does not trigger redirect", async () => {
+    api.setAuthMarker();
+
     Object.defineProperty(window, "location", {
       value: {
         ...originalLocation,
@@ -214,7 +294,9 @@ describe("Centralized 401 Session Handling & Redirect Guard", () => {
     expect(window.location.replace).not.toHaveBeenCalled();
   });
 
-  it("exportStatusLogsCsvApi returning 401 after refresh failure triggers session expired redirect", async () => {
+  it("exportStatusLogsCsvApi returning 401 after refresh failure triggers session expired redirect when authenticated", async () => {
+    api.setAuthMarker();
+
     const fetchMock = vi.fn();
 
     // 1. Initial export request returns 401
@@ -249,15 +331,34 @@ describe("Centralized 401 Session Handling & Redirect Guard", () => {
     expect(
       screen.getByText("Your session expired. Please sign in again.")
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Please sign in to continue.")
+    ).not.toBeInTheDocument();
   });
 
-  it("login page does not render session expired message on clean login navigation", () => {
+  it("login page renders neutral sign-in message when reason=sign_in_required query param is present", () => {
+    mockSearchParams = new URLSearchParams("?reason=sign_in_required");
+
+    render(<LoginPage />);
+
+    expect(
+      screen.getByText("Please sign in to continue.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Your session expired. Please sign in again.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("login page does not render session expired or sign-in message on clean login navigation", () => {
     mockSearchParams = new URLSearchParams("");
 
     render(<LoginPage />);
 
     expect(
       screen.queryByText("Your session expired. Please sign in again.")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Please sign in to continue.")
     ).not.toBeInTheDocument();
   });
 });

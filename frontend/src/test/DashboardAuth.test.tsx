@@ -120,9 +120,9 @@ describe("Protected Dashboard Authentication & Layout Guards", () => {
 
     render(<DashboardPage />);
 
-    // Should trigger replace navigation to /login
+    // Should trigger replace navigation to /login?reason=sign_in_required
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/login");
+      expect(mockReplace).toHaveBeenCalledWith("/login?reason=sign_in_required");
     });
 
     expect(sessionSpy).toHaveBeenCalledTimes(1);
@@ -255,7 +255,7 @@ describe("Protected Dashboard Authentication & Layout Guards", () => {
     );
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/login");
+      expect(mockReplace).toHaveBeenCalledWith("/login?reason=sign_in_required");
     });
 
     expect(screen.queryByTestId("secret-protected-child")).not.toBeInTheDocument();

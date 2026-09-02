@@ -148,7 +148,7 @@ export default function SuperAdminPage() {
         const sess = await getCurrentSessionApi();
         if (ignore) return;
         if (!sess || !sess.user) {
-          router.replace("/login");
+          router.replace("/login?reason=sign_in_required");
           return;
         }
         if (sess.user.mustChangePassword) {
@@ -166,7 +166,7 @@ export default function SuperAdminPage() {
         await Promise.all([loadSummary(), loadTenants()]);
       } catch {
         if (ignore) return;
-        router.replace("/login");
+        router.replace("/login?reason=sign_in_required");
       }
     }
     init();
@@ -177,7 +177,7 @@ export default function SuperAdminPage() {
 
   const handleLogout = async () => {
     await logoutApi();
-    router.push("/login");
+    router.replace("/login");
   };
 
   const handleSlugAutoFill = (name: string) => {

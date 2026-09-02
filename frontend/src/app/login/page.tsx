@@ -10,6 +10,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const reason = searchParams?.get("reason");
   const isSessionExpired = reason === "session_expired";
+  const isSignInRequired = reason === "sign_in_required" || reason === "unauthenticated";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -102,6 +103,26 @@ function LoginForm() {
             Enterprise WhatsApp status telemetry & real-time webhook observability
           </p>
         </div>
+
+        {/* Neutral sign-in required info banner for direct protected access */}
+        {isSignInRequired && !isSessionExpired && !error && (
+          <div
+            role="status"
+            className="mb-6 p-4 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-700 dark:text-purple-300 text-xs flex items-center gap-3 animate-card-enter"
+          >
+            <svg
+              className="w-5 h-5 shrink-0 text-purple-600 dark:text-purple-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Please sign in to continue.</span>
+          </div>
+        )}
 
         {/* Session expired info banner */}
         {isSessionExpired && !error && (

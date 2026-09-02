@@ -74,7 +74,7 @@ function DashboardContent() {
             setAuthChecking(false);
             return;
           }
-          router.replace("/login");
+          router.replace("/login?reason=sign_in_required");
           return;
         }
 
@@ -98,7 +98,7 @@ function DashboardContent() {
           setIsAuthorized(true);
           setAuthChecking(false);
         } else {
-          router.replace("/login");
+          router.replace("/login?reason=sign_in_required");
         }
       }
     }
