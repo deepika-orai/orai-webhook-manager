@@ -372,8 +372,8 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
         accessCookie.Should().Contain("httponly");
 
         var refreshCookie = cookieList.First(c => c.Contains("orai_refresh_token"));
-        refreshCookie.Should().Contain("path=/api/auth");
-        refreshCookie.Should().Contain("samesite=strict");
+        refreshCookie.Should().Contain("path=/;");
+        refreshCookie.Should().Contain("samesite=lax");
         refreshCookie.Should().Contain("httponly");
     }
 
@@ -389,12 +389,122 @@ public class AuthAndAdminEndpointsIntegrationTests : IClassFixture<CustomWebAppl
         var cookieList = cookies!.ToList();
 
         var accessCookie = cookieList.First(c => c.Contains("orai_access_token"));
+        accessCookie.Should().Contain("path=/;");
+        accessCookie.Should().Contain("samesite=none");
         accessCookie.Should().Contain("secure", "Production auth cookie MUST always have Secure flag");
         accessCookie.Should().Contain("httponly");
 
         var refreshCookie = cookieList.First(c => c.Contains("orai_refresh_token"));
+        refreshCookie.Should().Contain("path=/;");
+        refreshCookie.Should().Contain("samesite=none");
         refreshCookie.Should().Contain("secure", "Production refresh cookie MUST always have Secure flag");
         refreshCookie.Should().Contain("httponly");
+    }
+
+    [Fact]
+    public async Task Login_SetsRefreshCookie_WithExpiryLongerThanAccessCookie()
+    {
+        var (client, _) = await CreateClientWithCsrfAsync(environment: "Production");
+
+        var response = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("admin@orai.io", "AdminPass123!"));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        var cookieList = cookies!.ToList();
+
+        var accessCookie = cookieList.First(c => c.Contains("orai_access_token"));
+        var refreshCookie = cookieList.First(c => c.Contains("orai_refresh_token"));
+
+        // Extract expires attribute from cookies
+        var accessExpiresMatch = System.Text.RegularExpressions.Regex.Match(accessCookie, @"expires=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var refreshExpiresMatch = System.Text.RegularExpressions.Regex.Match(refreshCookie, @"expires=([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        accessExpiresMatch.Success.Should().BeTrue();
+        refreshExpiresMatch.Success.Should().BeTrue();
+
+        var accessExpires = DateTime.Parse(accessExpiresMatch.Groups[1].Value).ToUniversalTime();
+        var refreshExpires = DateTime.Parse(refreshExpiresMatch.Groups[1].Value).ToUniversalTime();
+
+        refreshExpires.Should().BeAfter(accessExpires);
+        (refreshExpires - accessExpires).TotalDays.Should().BeGreaterThan(6);
+    }
+
+    [Fact]
+    public async Task Refresh_WithValidRefreshCookie_RotatesCookies_AndSucceeds()
+    {
+        var (client, _) = await CreateClientWithCsrfAsync(environment: "Production");
+
+        // 1. Initial Login to establish cookies
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("admin@orai.io", "AdminPass123!"));
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 2. Call Refresh endpoint (cookies handled automatically by WebApplicationFactory handler)
+        var refreshResponse = await client.PostAsync("/api/auth/refresh", null);
+        refreshResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await refreshResponse.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("succeeded").GetBoolean().Should().BeTrue();
+        body.GetProperty("user").GetProperty("email").GetString().Should().Be("admin@orai.io");
+
+        // Verify rotated cookies in response
+        refreshResponse.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        var cookieList = cookies!.ToList();
+
+        var accessCookie = cookieList.First(c => c.Contains("orai_access_token"));
+        accessCookie.Should().Contain("path=/;");
+        accessCookie.Should().Contain("samesite=none");
+        accessCookie.Should().Contain("secure");
+        accessCookie.Should().Contain("httponly");
+
+        var refreshCookie = cookieList.First(c => c.Contains("orai_refresh_token"));
+        refreshCookie.Should().Contain("path=/;");
+        refreshCookie.Should().Contain("samesite=none");
+        refreshCookie.Should().Contain("secure");
+        refreshCookie.Should().Contain("httponly");
+    }
+
+    [Fact]
+    public async Task Refresh_WithoutRefreshCookie_ReturnsUnauthorized401()
+    {
+        var (client, _) = await CreateClientWithCsrfAsync(environment: "Production");
+
+        // CSRF header is attached, but no refresh cookie is present
+        var refreshResponse = await client.PostAsync("/api/auth/refresh", null);
+        refreshResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var body = await refreshResponse.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Be("No refresh token cookie found");
+    }
+
+    [Fact]
+    public async Task Logout_DeletesCookies_WithMatchingPathAndSecurityAttributes()
+    {
+        var (client, _) = await CreateClientWithCsrfAsync(environment: "Production");
+
+        // 1. Initial login
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("admin@orai.io", "AdminPass123!"));
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 2. Logout
+        var logoutResponse = await client.PostAsync("/api/auth/logout", null);
+        logoutResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        logoutResponse.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        var cookieList = cookies!.ToList();
+
+        var accessCookie = cookieList.First(c => c.Contains("orai_access_token"));
+        accessCookie.Should().Contain("path=/;");
+        accessCookie.Should().Contain("samesite=none");
+        accessCookie.Should().Contain("secure");
+        accessCookie.Should().Contain("httponly");
+        accessCookie.Should().Contain("expires=Thu, 01 Jan 1970");
+
+        var refreshCookie = cookieList.First(c => c.Contains("orai_refresh_token"));
+        refreshCookie.Should().Contain("path=/;");
+        refreshCookie.Should().Contain("samesite=none");
+        refreshCookie.Should().Contain("secure");
+        refreshCookie.Should().Contain("httponly");
+        refreshCookie.Should().Contain("expires=Thu, 01 Jan 1970");
     }
 
     // ---------------- Immediate Revocation & Security Version Tests ----------------

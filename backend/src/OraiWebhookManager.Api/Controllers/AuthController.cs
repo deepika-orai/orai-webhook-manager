@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using OraiWebhookManager.Api.Filters;
 using OraiWebhookManager.Application.Interfaces;
 using OraiWebhookManager.Application.Models;
+using OraiWebhookManager.Application.Options;
 
 namespace OraiWebhookManager.Api.Controllers;
 
@@ -15,15 +17,18 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly ICurrentUserContext _currentUserContext;
     private readonly IWebHostEnvironment _environment;
+    private readonly JwtOptions _jwtOptions;
 
     public AuthController(
         IAuthService _authService,
         ICurrentUserContext currentUserContext,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        IOptions<JwtOptions> jwtOptions)
     {
         this._authService = _authService;
         _currentUserContext = currentUserContext;
         _environment = environment;
+        _jwtOptions = jwtOptions.Value;
     }
 
     [HttpGet("csrf")]
@@ -160,7 +165,7 @@ public class AuthController : ControllerBase
             Secure = isProduction ? true : Request.IsHttps,
             SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Lax,
             Path = "/",
-            Expires = expiresAt?.UtcDateTime ?? DateTime.UtcNow.AddMinutes(15)
+            Expires = expiresAt?.UtcDateTime ?? DateTime.UtcNow.AddMinutes(_jwtOptions.AccessTokenExpirationMinutes)
         };
 
         Response.Cookies.Append("orai_access_token", accessToken, accessCookieOptions);
@@ -171,9 +176,9 @@ public class AuthController : ControllerBase
             {
                 HttpOnly = true,
                 Secure = isProduction ? true : Request.IsHttps,
-                SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Strict,
-                Path = "/api/auth",
-                Expires = DateTime.UtcNow.AddDays(7)
+                SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Lax,
+                Path = "/",
+                Expires = DateTime.UtcNow.AddDays(_jwtOptions.RefreshTokenExpirationDays)
             };
 
             Response.Cookies.Append("orai_refresh_token", refreshToken, refreshCookieOptions);
@@ -184,20 +189,15 @@ public class AuthController : ControllerBase
     {
         var isProduction = !_environment.IsDevelopment();
 
-        Response.Cookies.Delete("orai_access_token", new CookieOptions
+        var deleteCookieOptions = new CookieOptions
         {
             HttpOnly = true,
             Secure = isProduction ? true : Request.IsHttps,
             SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Lax,
             Path = "/"
-        });
+        };
 
-        Response.Cookies.Delete("orai_refresh_token", new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = isProduction ? true : Request.IsHttps,
-            SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Strict,
-            Path = "/api/auth"
-        });
+        Response.Cookies.Delete("orai_access_token", deleteCookieOptions);
+        Response.Cookies.Delete("orai_refresh_token", deleteCookieOptions);
     }
 }
