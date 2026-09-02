@@ -341,6 +341,22 @@ app.UseHttpsRedirection();
 
 app.UseCors("FrontendCorsPolicy");
 
+// Browser API Cache-Control policy: ensure auth, protected JSON, CSV, and Set-Cookie responses are not cached
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value ?? string.Empty;
+    if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
+        !path.StartsWith("/api/webhooks/", StringComparison.OrdinalIgnoreCase) &&
+        !path.StartsWith("/api/health", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+        context.Response.Headers.Pragma = "no-cache";
+        context.Response.Headers.Expires = "0";
+    }
+
+    await next();
+});
+
 app.UseRateLimiter();
 
 app.UseAuthentication();

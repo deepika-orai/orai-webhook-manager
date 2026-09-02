@@ -35,4 +35,18 @@ public class HealthEndpointTests : IClassFixture<CustomWebApplicationFactory>
         parseSuccess.Should().BeTrue();
         parsedDate.Offset.Should().Be(TimeSpan.Zero);
     }
+
+    [Fact]
+    public async Task BrowserApiRoutes_ReturnNoStoreCacheControlHeaders()
+    {
+        // Act - Request browser auth/csrf endpoint
+        var response = await _client.GetAsync("/api/auth/csrf");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.CacheControl.Should().NotBeNull();
+        response.Headers.CacheControl!.NoStore.Should().BeTrue();
+        response.Headers.CacheControl.NoCache.Should().BeTrue();
+        response.Headers.CacheControl.MustRevalidate.Should().BeTrue();
+    }
 }

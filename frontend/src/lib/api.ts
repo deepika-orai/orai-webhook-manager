@@ -18,9 +18,26 @@ import {
   RotateKeyResponse,
 } from "../types/auth";
 
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5135/api"
-).replace(/\/+$/, "");
+/**
+ * Safely resolves the API base URL for same-origin proxying.
+ * Strictly defaults to '/backend-api'. Rejects absolute URLs (http://, https://, //)
+ * to prevent accidental cross-site regressions and third-party cookie blocking.
+ */
+export function resolveApiBaseUrl(envUrl?: string): string {
+  const value = envUrl !== undefined ? envUrl : process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!value) {
+    return "/backend-api";
+  }
+  const trimmed = value.trim();
+  // Accept only the exact value "/backend-api" or safe relative subpaths starting with "/" and not "//"
+  if (trimmed === "/backend-api" || (trimmed.startsWith("/") && !trimmed.startsWith("//"))) {
+    return trimmed.replace(/\/+$/, "");
+  }
+  // Absolute URLs are strictly ignored/rejected to enforce same-origin proxying
+  return "/backend-api";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const DEMO_TENANT_ID = process.env.NEXT_PUBLIC_DEMO_TENANT_ID || "";
 
@@ -101,6 +118,7 @@ export async function fetchCsrfToken(): Promise<string> {
       const res = await fetch(`${API_BASE_URL}/auth/csrf`, {
         method: "GET",
         credentials: "include",
+        cache: "no-store",
         headers: {
           Accept: "application/json",
         },
@@ -174,6 +192,7 @@ async function requestWithRefresh<T>(
   const finalOptions: RequestInit = {
     ...options,
     credentials: "include",
+    cache: "no-store",
     headers: getHeaders(customHeaders),
   };
 
@@ -229,6 +248,7 @@ async function requestWithRefresh<T>(
         const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
           method: "POST",
           credentials: "include",
+          cache: "no-store",
           headers: getHeaders(refreshHeaders),
         });
 
@@ -284,6 +304,7 @@ export async function loginApi(email: string, password: string): Promise<LoginRe
     method: "POST",
     headers,
     credentials: "include",
+    cache: "no-store",
     body: JSON.stringify({ email, password }),
   });
 
@@ -303,6 +324,7 @@ export async function loginApi(email: string, password: string): Promise<LoginRe
           method: "POST",
           headers: retryHeaders,
           credentials: "include",
+          cache: "no-store",
           body: JSON.stringify({ email, password }),
         });
       }
@@ -347,6 +369,7 @@ export async function logoutApi(): Promise<{ message: string }> {
   let res = await fetch(`${API_BASE_URL}/auth/logout`, {
     method: "POST",
     credentials: "include",
+    cache: "no-store",
     headers: getHeaders(headers),
   });
 
@@ -365,6 +388,7 @@ export async function logoutApi(): Promise<{ message: string }> {
         res = await fetch(`${API_BASE_URL}/auth/logout`, {
           method: "POST",
           credentials: "include",
+          cache: "no-store",
           headers: getHeaders(retryHeaders),
         });
       }
@@ -482,7 +506,6 @@ export async function getDashboardSummary(customTenantHeader?: string): Promise<
   }
   return requestWithRefresh<DashboardSummary>(`${API_BASE_URL}/dashboard/summary`, {
     headers,
-    cache: "no-store",
   });
 }
 
@@ -508,7 +531,6 @@ export async function getMessages(
 
   return requestWithRefresh<PagedResult<MessageListItem>>(url, {
     headers,
-    cache: "no-store",
   });
 }
 
@@ -524,7 +546,6 @@ export async function getMessageEvents(
     `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/events`,
     {
       headers,
-      cache: "no-store",
     }
   );
 }
@@ -536,7 +557,6 @@ export async function getWebhookEndpoints(customTenantHeader?: string): Promise<
   }
   return requestWithRefresh<WebhookEndpoint[]>(`${API_BASE_URL}/webhook-endpoints`, {
     headers,
-    cache: "no-store",
   });
 }
 
@@ -563,6 +583,7 @@ export async function exportStatusLogsCsvApi(
   let res = await fetch(url, {
     method: "GET",
     credentials: "include",
+    cache: "no-store",
     headers: getHeaders(headers),
   });
 
@@ -576,6 +597,7 @@ export async function exportStatusLogsCsvApi(
       const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
         credentials: "include",
+        cache: "no-store",
         headers: getHeaders(refreshHeaders),
       });
       if (refreshRes.ok) {
@@ -583,6 +605,7 @@ export async function exportStatusLogsCsvApi(
         res = await fetch(url, {
           method: "GET",
           credentials: "include",
+          cache: "no-store",
           headers: getHeaders(headers),
         });
       }
