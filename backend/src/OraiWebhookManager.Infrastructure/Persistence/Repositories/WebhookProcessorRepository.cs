@@ -29,7 +29,7 @@ public class WebhookProcessorRepository : IWebhookProcessorRepository
         const string sql = """
             WITH claimable AS (
                 SELECT id FROM webhook_inbox
-                WHERE (status = 0 OR (status = 1 AND locked_until < NOW()))
+                WHERE (status = 0 OR status = 3 OR (status = 1 AND locked_until < NOW()))
                   AND next_attempt_at <= NOW()
                 ORDER BY created_at ASC
                 LIMIT @BatchSize

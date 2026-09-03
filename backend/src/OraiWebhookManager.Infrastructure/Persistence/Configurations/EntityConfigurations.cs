@@ -157,6 +157,11 @@ public class WebhookInboxItemConfiguration : IEntityTypeConfiguration<WebhookInb
             .HasDatabaseName("ix_webhook_inbox_queue")
             .HasFilter("status IN (0, 1)");
 
+        // Partial index for failed retry queue polling
+        builder.HasIndex(i => new { i.NextAttemptAt, i.CreatedAt })
+            .HasDatabaseName("ix_webhook_inbox_failed_retry")
+            .HasFilter("status = 3");
+
         builder.HasIndex(i => new { i.TenantId, i.CreatedAt })
             .HasDatabaseName("ix_webhook_inbox_tenant_created");
 
