@@ -10,11 +10,11 @@ public class WebhookKeyService : IWebhookKeyService
 
     public WebhookKeyGenerateResult GenerateKey()
     {
-        // 32 bytes of cryptographically secure random bytes -> 256 bits entropy
-        var randomBytes = new byte[32];
+        // 16 bytes of cryptographically secure random bytes -> 128 bits entropy
+        var randomBytes = new byte[16];
         RandomNumberGenerator.Fill(randomBytes);
-        var base64Token = Convert.ToHexString(randomBytes).ToLowerInvariant();
-        var plainKey = $"{KeyPrefixTag}{base64Token}";
+        var base64UrlToken = System.Buffers.Text.Base64Url.EncodeToString(randomBytes);
+        var plainKey = $"{KeyPrefixTag}{base64UrlToken}";
 
         var keyPrefix = plainKey.Length >= 16 ? plainKey[..16] : plainKey;
         var keyHash = ComputeKeyHash(plainKey);

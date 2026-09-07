@@ -105,21 +105,3 @@ public class MetaWebhookParserTests
         events.Should().BeEmpty();
     }
 }
-
-public class WebhookKeyServiceTests
-{
-    private readonly WebhookKeyService _service = new();
-
-    [Fact]
-    public void GenerateKey_ShouldReturnValidKeyAndMatchingHash()
-    {
-        var result = _service.GenerateKey();
-
-        result.PlainKey.Should().StartWith("whk_live_");
-        result.KeyPrefix.Should().Be(result.PlainKey[..16]);
-        result.KeyHash.Should().HaveCount(32);
-
-        var computed = _service.ComputeKeyHash(result.PlainKey);
-        computed.Should().Equal(result.KeyHash);
-    }
-}

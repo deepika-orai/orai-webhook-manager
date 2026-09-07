@@ -9,6 +9,7 @@ public class RedactingLoggerTests
 {
     [Theory]
     [InlineData("POST /api/webhooks/whatsapp/whk_live_d7fc9840da394d22ac8609005cebd7c3", "POST /api/webhooks/whatsapp/whk_live_***")]
+    [InlineData("POST /api/webhooks/whatsapp/whk_live_abcdefghijklmnopqrstuv", "POST /api/webhooks/whatsapp/whk_live_***")]
     [InlineData("Request finished HTTP/1.1 POST http://localhost:5135/api/webhooks/whatsapp/whk_local_d7fc9840da394d22ac8609005cebd7c3 - 200", "Request finished HTTP/1.1 POST http://localhost:5135/api/webhooks/whatsapp/whk_local_*** - 200")]
     [InlineData("POST /api/webhooks/whatsapp/whk_test_1234567890abcdef", "POST /api/webhooks/whatsapp/whk_test_***")]
     [InlineData("POST /api/webhooks/whatsapp/whk_dev_1234567890abcdef", "POST /api/webhooks/whatsapp/whk_dev_***")]

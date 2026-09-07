@@ -113,6 +113,80 @@ public class WhatsAppWebhookEndpointTests : IClassFixture<CustomWebApplicationFa
     }
 
     [Fact]
+    public async Task IngestWebhook_Legacy73CharacterKey_SucceedsAndEnqueuesDurableItem()
+    {
+        var client = CreateCustomClient();
+        const string legacy73Key = "whk_live_e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        legacy73Key.Length.Should().Be(73);
+
+        var keyHash = _keyService.ComputeKeyHash(legacy73Key);
+        var keyPrefix = _keyService.ExtractPrefix(legacy73Key);
+        var tenantId = Guid.NewGuid();
+        var endpointId = Guid.NewGuid();
+
+        _fakeInboxRepo.SeedEndpoint(new CachedWebhookEndpoint(
+            Id: endpointId,
+            TenantId: tenantId,
+            Name: "Legacy 73-character Line",
+            KeyPrefix: keyPrefix,
+            KeyHash: keyHash,
+            Status: WebhookEndpointStatus.Active
+        ));
+
+        var response = await client.PostAsync(
+            $"/api/webhooks/whatsapp/{legacy73Key}",
+            new StringContent("{\"entry\":[]}", Encoding.UTF8, "application/json")
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var doc = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        doc.Should().NotBeNull();
+        doc!.RootElement.GetProperty("received").GetBoolean().Should().BeTrue();
+        doc.RootElement.GetProperty("inbox_id").GetInt64().Should().BeGreaterThan(0);
+
+        _fakeInboxRepo.EnqueuedItems.Should().HaveCount(1);
+        _fakeInboxRepo.EnqueuedItems[0].TenantId.Should().Be(tenantId);
+        _fakeInboxRepo.EnqueuedItems[0].EndpointId.Should().Be(endpointId);
+    }
+
+    [Fact]
+    public async Task IngestWebhook_Legacy41CharacterKey_SucceedsAndEnqueuesDurableItem()
+    {
+        var client = CreateCustomClient();
+        const string legacy41Key = "whk_live_0123456789abcdef0123456789abcdef";
+        legacy41Key.Length.Should().Be(41);
+
+        var keyHash = _keyService.ComputeKeyHash(legacy41Key);
+        var keyPrefix = _keyService.ExtractPrefix(legacy41Key);
+        var tenantId = Guid.NewGuid();
+        var endpointId = Guid.NewGuid();
+
+        _fakeInboxRepo.SeedEndpoint(new CachedWebhookEndpoint(
+            Id: endpointId,
+            TenantId: tenantId,
+            Name: "Legacy 41-character Line",
+            KeyPrefix: keyPrefix,
+            KeyHash: keyHash,
+            Status: WebhookEndpointStatus.Active
+        ));
+
+        var response = await client.PostAsync(
+            $"/api/webhooks/whatsapp/{legacy41Key}",
+            new StringContent("{\"entry\":[]}", Encoding.UTF8, "application/json")
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var doc = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        doc.Should().NotBeNull();
+        doc!.RootElement.GetProperty("received").GetBoolean().Should().BeTrue();
+        doc.RootElement.GetProperty("inbox_id").GetInt64().Should().BeGreaterThan(0);
+
+        _fakeInboxRepo.EnqueuedItems.Should().HaveCount(1);
+        _fakeInboxRepo.EnqueuedItems[0].TenantId.Should().Be(tenantId);
+        _fakeInboxRepo.EnqueuedItems[0].EndpointId.Should().Be(endpointId);
+    }
+
+    [Fact]
     public async Task IngestWebhook_RevokedKey_ReturnsUnauthorized()
     {
         var client = CreateCustomClient();
@@ -133,6 +207,31 @@ public class WhatsAppWebhookEndpointTests : IClassFixture<CustomWebApplicationFa
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task IngestWebhook_EmptyPayload_ReturnsBadRequest()
+    {
+        var client = CreateCustomClient();
+        var keyGen = _keyService.GenerateKey();
+
+        _fakeInboxRepo.SeedEndpoint(new CachedWebhookEndpoint(
+            Id: Guid.NewGuid(),
+            TenantId: Guid.NewGuid(),
+            Name: "Active Line",
+            KeyPrefix: keyGen.KeyPrefix,
+            KeyHash: keyGen.KeyHash,
+            Status: WebhookEndpointStatus.Active
+        ));
+
+        var response = await client.PostAsync(
+            $"/api/webhooks/whatsapp/{keyGen.PlainKey}",
+            new StringContent("", Encoding.UTF8, "application/json")
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var content = await response.Content.ReadAsStringAsync();
+        content.Should().Contain("Webhook payload cannot be empty.");
     }
 
     [Fact]
@@ -169,7 +268,7 @@ public class WhatsAppWebhookEndpointTests : IClassFixture<CustomWebApplicationFa
     {
         var logSink = new TestLogSink();
         var keyGen = _keyService.GenerateKey();
-        var rawKey = keyGen.PlainKey; // e.g. whk_live_32byte_hex...
+        var rawKey = keyGen.PlainKey; // e.g. whk_live_<22-char-base64url-token>
         var tenantId = Guid.NewGuid();
         var endpointId = Guid.NewGuid();
 

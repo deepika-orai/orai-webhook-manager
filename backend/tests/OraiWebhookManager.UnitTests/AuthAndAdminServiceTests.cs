@@ -479,11 +479,11 @@ public class AuthAndAdminServiceTests
     }
 
     [Fact]
-    public async Task AdminService_CustomAzureUrl_WithTrailingSlashes_NormalizesCorrectly()
+    public async Task AdminService_CustomAzureUrl_WithTrailingSlashes_NormalizesCorrectly_AndIsShorterThan100Characters()
     {
         var azureBaseUrl = "https://oraiapi.azurewebsites.net///";
         var (_, adminService, _, _, _) = CreateServices(
-            nameof(AdminService_CustomAzureUrl_WithTrailingSlashes_NormalizesCorrectly),
+            nameof(AdminService_CustomAzureUrl_WithTrailingSlashes_NormalizesCorrectly_AndIsShorterThan100Characters),
             publicBaseUrl: azureBaseUrl,
             environment: "Production"
         );
@@ -495,12 +495,18 @@ public class AuthAndAdminServiceTests
             "127.0.0.1"
         );
 
+        createResult.WebhookPlainKey.Length.Should().Be(31, "Webhook plain key must be exactly 31 characters");
         createResult.WebhookUrl.Should().Be($"https://oraiapi.azurewebsites.net/api/webhooks/whatsapp/{createResult.WebhookPlainKey}");
         createResult.WebhookUrl.Should().NotContain("//api");
+        createResult.WebhookUrl.Length.Should().Be(87, "33 (base) + 23 (route) + 31 (key) = 87 characters");
+        createResult.WebhookUrl.Length.Should().BeLessThan(100, "Webhook URL must be strictly under 100 characters");
 
         var rotateResult = await adminService.RotateWebhookKeyAsync(createResult.WebhookEndpointId, adminId, "127.0.0.1");
+        rotateResult.PlainKey.Length.Should().Be(31, "Rotated key must be exactly 31 characters");
         rotateResult.WebhookUrl.Should().Be($"https://oraiapi.azurewebsites.net/api/webhooks/whatsapp/{rotateResult.PlainKey}");
         rotateResult.WebhookUrl.Should().NotContain("//api");
+        rotateResult.WebhookUrl.Length.Should().Be(87, "33 (base) + 23 (route) + 31 (key) = 87 characters");
+        rotateResult.WebhookUrl.Length.Should().BeLessThan(100, "Rotated Webhook URL must be strictly under 100 characters");
     }
 
     [Fact]
