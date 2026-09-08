@@ -35,6 +35,14 @@ public interface ICurrentUserContext
     TenantRole? Role { get; }
 }
 
+public enum PubSubInboxEnqueueStatus
+{
+    Created,
+    AlreadyExists
+}
+
+public record PubSubInboxEnqueueResult(PubSubInboxEnqueueStatus Status, long InboxId);
+
 public interface IWebhookInboxRepository
 {
     Task<long> EnqueueAsync(
@@ -43,6 +51,11 @@ public interface IWebhookInboxRepository
         string payloadRaw,
         string headersJson,
         string? ipAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<PubSubInboxEnqueueResult> EnqueueFromPubSubAsync(
+        PubSubWebhookEnvelope envelope,
+        string pubsubMessageId,
         CancellationToken cancellationToken = default);
 
     Task<CachedWebhookEndpoint?> GetEndpointByHashAsync(byte[] keyHash, CancellationToken cancellationToken = default);

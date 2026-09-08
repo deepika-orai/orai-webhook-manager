@@ -27,6 +27,11 @@ public static class DependencyInjection
         services.Configure<WebhookIngestionOptions>(configuration.GetSection(WebhookIngestionOptions.SectionName));
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
 
+        services.AddOptions<GooglePubSubOptions>()
+            .Bind(configuration.GetSection(GooglePubSubOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<GooglePubSubOptions>, GooglePubSubOptionsValidator>();
+
         // Memory Cache
         services.AddMemoryCache();
 

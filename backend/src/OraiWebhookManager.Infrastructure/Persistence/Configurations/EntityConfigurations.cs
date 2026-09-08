@@ -151,6 +151,7 @@ public class WebhookInboxItemConfiguration : IEntityTypeConfiguration<WebhookInb
         builder.Property(i => i.NextAttemptAt).HasColumnName("next_attempt_at").IsRequired();
         builder.Property(i => i.CreatedAt).HasColumnName("created_at").IsRequired();
         builder.Property(i => i.ProcessedAt).HasColumnName("processed_at");
+        builder.Property(i => i.PubSubMessageId).HasColumnName("pubsub_message_id").HasMaxLength(128);
 
         // Partial index for worker queue polling
         builder.HasIndex(i => new { i.NextAttemptAt, i.CreatedAt })
@@ -161,6 +162,12 @@ public class WebhookInboxItemConfiguration : IEntityTypeConfiguration<WebhookInb
         builder.HasIndex(i => new { i.NextAttemptAt, i.CreatedAt })
             .HasDatabaseName("ix_webhook_inbox_failed_retry")
             .HasFilter("status = 3");
+
+        // Unique partial index for idempotent Pub/Sub ingestion deduplication
+        builder.HasIndex(i => i.PubSubMessageId)
+            .IsUnique()
+            .HasDatabaseName("ix_webhook_inbox_pubsub_message_id")
+            .HasFilter("pubsub_message_id IS NOT NULL");
 
         builder.HasIndex(i => new { i.TenantId, i.CreatedAt })
             .HasDatabaseName("ix_webhook_inbox_tenant_created");

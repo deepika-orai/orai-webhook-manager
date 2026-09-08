@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OraiWebhookManager.Application.Interfaces;
+using OraiWebhookManager.Application.Models;
 using OraiWebhookManager.Domain.Enums;
 
 namespace OraiWebhookManager.IntegrationTests;
@@ -368,6 +369,20 @@ public class FakeWebhookInboxRepository : IWebhookInboxRepository
             EnqueuedItems.Add((tenantId, endpointId, payloadRaw, headersJson, ipAddress));
         }
         return Task.FromResult(id);
+    }
+
+    public Task<PubSubInboxEnqueueResult> EnqueueFromPubSubAsync(
+        PubSubWebhookEnvelope envelope,
+        string pubsubMessageId,
+        CancellationToken cancellationToken = default)
+    {
+        var id = Interlocked.Increment(ref _currentId);
+        var headersJson = JsonSerializer.Serialize(envelope.FilteredHeaders);
+        lock (EnqueuedItems)
+        {
+            EnqueuedItems.Add((envelope.TenantId, envelope.EndpointId, envelope.PayloadRaw, headersJson, envelope.SourceIp));
+        }
+        return Task.FromResult(new PubSubInboxEnqueueResult(PubSubInboxEnqueueStatus.Created, id));
     }
 
     public Task<CachedWebhookEndpoint?> GetEndpointByHashAsync(byte[] keyHash, CancellationToken cancellationToken = default)

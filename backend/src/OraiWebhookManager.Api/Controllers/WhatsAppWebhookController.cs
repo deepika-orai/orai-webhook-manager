@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using OraiWebhookManager.Application.Helpers;
 using OraiWebhookManager.Application.Interfaces;
 using OraiWebhookManager.Application.Options;
 using OraiWebhookManager.Domain.Enums;
@@ -19,14 +20,7 @@ public class WhatsAppWebhookController : ControllerBase
     private readonly WebhookIngestionOptions _options;
     private readonly ILogger<WhatsAppWebhookController> _logger;
 
-    private static readonly HashSet<string> AllowlistedHeaders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "User-Agent",
-        "X-Hub-Signature-256",
-        "X-Forwarded-For",
-        "TraceParent",
-        "Content-Type"
-    };
+    private static readonly HashSet<string> AllowlistedHeaders = WebhookHeaderSanitizer.DirectIngestionAllowlistedHeaders;
 
     public WhatsAppWebhookController(
         IWebhookKeyService keyService,

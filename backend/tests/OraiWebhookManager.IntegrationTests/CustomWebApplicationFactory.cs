@@ -38,6 +38,18 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
             services.AddScoped<IPlatformAdminDbContext>(sp => sp.GetRequiredService<PlatformAdminDbContext>());
+
+            // Remove background WebhookProcessingWorker from WebApplicationFactory HTTP test host
+            // (Worker polling is tested in dedicated repository integration tests with isolated schema)
+            var workerDescriptors = services.Where(d =>
+                d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
+                d.ImplementationType == typeof(OraiWebhookManager.Infrastructure.Workers.WebhookProcessingWorker)
+            ).ToList();
+
+            foreach (var d in workerDescriptors)
+            {
+                services.Remove(d);
+            }
         });
     }
 }

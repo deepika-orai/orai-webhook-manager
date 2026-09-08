@@ -38,6 +38,7 @@ public class WebhookInboxItem
     public DateTimeOffset NextAttemptAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ProcessedAt { get; set; }
+    public string? PubSubMessageId { get; set; }
 
     // Navigation properties
     public WebhookEndpoint? Endpoint { get; set; }
