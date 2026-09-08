@@ -53,4 +53,29 @@ public class DependencyInjectionTests
         // Assert
         act.Should().NotThrow();
     }
+
+    [Fact]
+    public void AddInfrastructure_WhenUsePubSubBufferIsFalse_RegistersNullWebhookBufferPublisher()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var inMemorySettings = new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Port=5432;Database=orai_webhooks;Username=test;Password=test;",
+            ["GooglePubSub:UsePubSubBuffer"] = "false"
+        };
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemorySettings)
+            .Build();
+
+        // Act
+        services.AddInfrastructure(configuration);
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        var publisher = provider.GetRequiredService<OraiWebhookManager.Application.Interfaces.IWebhookBufferPublisher>();
+        publisher.Should().NotBeNull();
+        publisher.Should().BeOfType<OraiWebhookManager.Infrastructure.Services.NullWebhookBufferPublisher>();
+    }
 }

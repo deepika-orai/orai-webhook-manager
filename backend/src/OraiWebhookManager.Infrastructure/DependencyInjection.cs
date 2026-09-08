@@ -67,6 +67,24 @@ public static class DependencyInjection
         services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddSingleton<ICacheInvalidator, CacheInvalidationService>();
 
+        // Google Cloud Pub/Sub Buffer Services
+        var pubSubOptions = configuration.GetSection(GooglePubSubOptions.SectionName).Get<GooglePubSubOptions>() ?? new GooglePubSubOptions();
+        if (pubSubOptions.UsePubSubBuffer)
+        {
+            services.AddSingleton<OraiWebhookManager.Infrastructure.PubSub.IPubSubPublisherClient>(sp =>
+            {
+                var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GooglePubSubOptions>>().Value;
+                var topicName = Google.Cloud.PubSub.V1.TopicName.FromProjectTopic(opts.ProjectId, opts.TopicId);
+                var client = Google.Cloud.PubSub.V1.PublisherClient.Create(topicName);
+                return new OraiWebhookManager.Infrastructure.PubSub.GooglePubSubPublisherClientAdapter(client);
+            });
+            services.AddSingleton<IWebhookBufferPublisher, GooglePubSubWebhookPublisher>();
+        }
+        else
+        {
+            services.AddSingleton<IWebhookBufferPublisher, NullWebhookBufferPublisher>();
+        }
+
         // Activity Buffer Singleton & Hosted Service
         services.AddSingleton<EndpointActivityBuffer>();
         services.AddSingleton<IEndpointActivityBuffer>(sp => sp.GetRequiredService<EndpointActivityBuffer>());

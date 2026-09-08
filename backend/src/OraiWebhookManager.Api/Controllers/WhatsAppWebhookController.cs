@@ -3,8 +3,10 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using OraiWebhookManager.Application.Exceptions;
 using OraiWebhookManager.Application.Helpers;
 using OraiWebhookManager.Application.Interfaces;
+using OraiWebhookManager.Application.Models;
 using OraiWebhookManager.Application.Options;
 using OraiWebhookManager.Domain.Enums;
 
@@ -16,8 +18,10 @@ public class WhatsAppWebhookController : ControllerBase
 {
     private readonly IWebhookKeyService _keyService;
     private readonly IWebhookInboxRepository _inboxRepository;
+    private readonly IWebhookBufferPublisher _bufferPublisher;
     private readonly IMemoryCache _memoryCache;
     private readonly WebhookIngestionOptions _options;
+    private readonly GooglePubSubOptions _pubSubOptions;
     private readonly ILogger<WhatsAppWebhookController> _logger;
 
     private static readonly HashSet<string> AllowlistedHeaders = WebhookHeaderSanitizer.DirectIngestionAllowlistedHeaders;
@@ -25,14 +29,18 @@ public class WhatsAppWebhookController : ControllerBase
     public WhatsAppWebhookController(
         IWebhookKeyService keyService,
         IWebhookInboxRepository inboxRepository,
+        IWebhookBufferPublisher bufferPublisher,
         IMemoryCache memoryCache,
         IOptions<WebhookIngestionOptions> options,
+        IOptions<GooglePubSubOptions> pubSubOptions,
         ILogger<WhatsAppWebhookController> logger)
     {
         _keyService = keyService;
         _inboxRepository = inboxRepository;
+        _bufferPublisher = bufferPublisher;
         _memoryCache = memoryCache;
         _options = options.Value;
+        _pubSubOptions = pubSubOptions.Value;
         _logger = logger;
     }
 
@@ -74,33 +82,109 @@ public class WhatsAppWebhookController : ControllerBase
             return BadRequest(new { error = "Webhook payload cannot be empty." });
         }
 
-        // Extract allowlisted headers only
-        var headerDict = new Dictionary<string, string>();
-        foreach (var header in Request.Headers)
-        {
-            if (AllowlistedHeaders.Contains(header.Key))
-            {
-                headerDict[header.Key] = header.Value.ToString();
-            }
-        }
-
-        var headersJson = JsonSerializer.Serialize(headerDict);
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-        // Durable ingestion into webhook_inbox
-        var inboxId = await _inboxRepository.EnqueueAsync(
-            endpoint.TenantId,
-            endpoint.Id,
-            rawPayload,
-            headersJson,
-            ipAddress,
-            cancellationToken
+        // 1. Direct PostgreSQL ingestion path (when UsePubSubBuffer is false)
+        if (!_pubSubOptions.UsePubSubBuffer)
+        {
+            // Extract allowlisted headers only
+            var headerDict = new Dictionary<string, string>();
+            foreach (var header in Request.Headers)
+            {
+                if (AllowlistedHeaders.Contains(header.Key))
+                {
+                    headerDict[header.Key] = header.Value.ToString();
+                }
+            }
+
+            var headersJson = JsonSerializer.Serialize(headerDict);
+
+            // Durable ingestion into webhook_inbox
+            var inboxId = await _inboxRepository.EnqueueAsync(
+                endpoint.TenantId,
+                endpoint.Id,
+                rawPayload,
+                headersJson,
+                ipAddress,
+                cancellationToken
+            );
+
+            return Ok(new
+            {
+                received = true,
+                inbox_id = inboxId
+            });
+        }
+
+        // 2. Google Cloud Pub/Sub buffered path (when UsePubSubBuffer is true)
+        var correlationId = Guid.NewGuid();
+        var traceId = HttpContext.TraceIdentifier;
+
+        var envelope = PubSubWebhookEnvelope.Create(
+            correlationId: correlationId,
+            tenantId: endpoint.TenantId,
+            endpointId: endpoint.Id,
+            receivedAtUtc: DateTimeOffset.UtcNow,
+            payloadRaw: rawPayload,
+            rawHeaders: Request.Headers.Select(h => new KeyValuePair<string, string>(h.Key, h.Value.ToString())),
+            sourceIp: ipAddress,
+            contentType: Request.ContentType
         );
 
-        return Ok(new
+        try
         {
-            received = true,
-            inbox_id = inboxId
-        });
+            var messageId = await _bufferPublisher.PublishAsync(envelope, cancellationToken);
+
+            return Ok(new
+            {
+                received = true,
+                buffered = true,
+                correlation_id = correlationId.ToString(),
+                queue_message_id = messageId,
+                inbox_id = (long?)null
+            });
+        }
+        catch (WebhookBufferPublishException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Pub/Sub ingestion failed. Returning HTTP 503. CorrelationId: {CorrelationId}, TraceId: {TraceId}, TenantId: {TenantId}, EndpointId: {EndpointId}, IsAmbiguousTimeout: {IsAmbiguousTimeout}",
+                correlationId,
+                traceId,
+                endpoint.TenantId,
+                endpoint.Id,
+                ex.IsAmbiguousTimeout);
+
+            Response.Headers.RetryAfter = "5";
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            {
+                error = "Webhook ingestion buffer is temporarily unavailable. Please retry.",
+                correlation_id = correlationId.ToString(),
+                retry_after_seconds = 5
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Client closed connection / request was cancelled upstream
+            return StatusCode(499);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Unexpected error during Pub/Sub buffered ingestion. CorrelationId: {CorrelationId}, TraceId: {TraceId}, TenantId: {TenantId}, EndpointId: {EndpointId}",
+                correlationId,
+                traceId,
+                endpoint.TenantId,
+                endpoint.Id);
+
+            Response.Headers.RetryAfter = "5";
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            {
+                error = "Webhook ingestion buffer is temporarily unavailable. Please retry.",
+                correlation_id = correlationId.ToString(),
+                retry_after_seconds = 5
+            });
+        }
     }
 }
