@@ -22,6 +22,8 @@ public static class DependencyInjection
                 "Please configure 'ConnectionStrings__DefaultConnection' via environment variables or .NET User Secrets.");
         }
 
+        services.AddSingleton<IConfiguration>(configuration);
+
         // Configure options
         services.Configure<RetentionOptions>(configuration.GetSection(RetentionOptions.SectionName));
         services.Configure<WebhookIngestionOptions>(configuration.GetSection(WebhookIngestionOptions.SectionName));
@@ -67,7 +69,7 @@ public static class DependencyInjection
         services.AddScoped<IDashboardRepository, DashboardRepository>();
         services.AddSingleton<ICacheInvalidator, CacheInvalidationService>();
 
-        // Google Cloud Pub/Sub Buffer Services
+        // Google Cloud Pub/Sub Buffer Services (Publisher)
         var pubSubOptions = configuration.GetSection(GooglePubSubOptions.SectionName).Get<GooglePubSubOptions>() ?? new GooglePubSubOptions();
         if (pubSubOptions.UsePubSubBuffer)
         {
@@ -83,6 +85,37 @@ public static class DependencyInjection
         else
         {
             services.AddSingleton<IWebhookBufferPublisher, NullWebhookBufferPublisher>();
+        }
+
+        // Logging
+        services.AddLogging();
+
+        // Google Cloud Pub/Sub Readiness Checker
+        services.AddSingleton<IPubSubDatabaseReadinessChecker>(sp =>
+            new PubSubDatabaseReadinessChecker(
+                configuration,
+                sp.GetService<Microsoft.Extensions.Logging.ILogger<PubSubDatabaseReadinessChecker>>()
+                    ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<PubSubDatabaseReadinessChecker>.Instance));
+
+        // Google Cloud Pub/Sub Pull Consumer (Subscriber)
+        if (pubSubOptions.EnableSubscriber)
+        {
+            services.AddSingleton<OraiWebhookManager.Infrastructure.PubSub.IPubSubSubscriberClient>(sp =>
+            {
+                var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GooglePubSubOptions>>().Value;
+                var builder = new Google.Cloud.PubSub.V1.SubscriberClientBuilder
+                {
+                    SubscriptionName = Google.Cloud.PubSub.V1.SubscriptionName.FromProjectSubscription(opts.ProjectId, opts.SubscriptionId),
+                    ClientCount = opts.SubscriberClientCount,
+                    Settings = new Google.Cloud.PubSub.V1.SubscriberClient.Settings
+                    {
+                        FlowControlSettings = new Google.Api.Gax.FlowControlSettings(opts.MaxOutstandingElementCount, opts.MaxOutstandingByteCount)
+                    }
+                };
+                var client = builder.Build();
+                return new OraiWebhookManager.Infrastructure.PubSub.GooglePubSubSubscriberClientAdapter(client);
+            });
+            services.AddHostedService<WebhookPubSubConsumerWorker>();
         }
 
         // Activity Buffer Singleton & Hosted Service

@@ -19,6 +19,7 @@ public class GooglePubSubOptionsAndEnvelopeTests
         var options = new GooglePubSubOptions();
 
         options.UsePubSubBuffer.Should().BeFalse();
+        options.EnableSubscriber.Should().BeFalse();
         options.ProjectId.Should().Be("orai-official");
         options.TopicId.Should().Be("whatsapp-webhook-inbox");
         options.SubscriptionId.Should().Be("whatsapp-webhook-inbox-sub");
@@ -29,11 +30,12 @@ public class GooglePubSubOptionsAndEnvelopeTests
     }
 
     [Fact]
-    public void Validator_WhenUsePubSubBufferIsFalse_SucceedsEvenIfFieldsAreEmpty()
+    public void Validator_WhenBothFlagsAreFalse_SucceedsEvenIfFieldsAreEmpty()
     {
         var options = new GooglePubSubOptions
         {
             UsePubSubBuffer = false,
+            EnableSubscriber = false,
             ProjectId = "",
             TopicId = "",
             SubscriptionId = "",
@@ -50,32 +52,27 @@ public class GooglePubSubOptionsAndEnvelopeTests
     }
 
     [Theory]
-    [InlineData("", "topic", "sub", 5, 1, 100, 20971520)]
-    [InlineData("proj", "", "sub", 5, 1, 100, 20971520)]
-    [InlineData("proj", "topic", "", 5, 1, 100, 20971520)]
-    [InlineData("proj", "topic", "sub", 0, 1, 100, 20971520)]
-    [InlineData("proj", "topic", "sub", 5, 0, 100, 20971520)]
-    [InlineData("proj", "topic", "sub", 5, 1, 0, 20971520)]
-    [InlineData("proj", "topic", "sub", 5, 1, 100, 0)]
-    public void Validator_WhenUsePubSubBufferIsTrue_FailsOnInvalidOrMissingFields(
+    [InlineData("", "topic", 5)]
+    [InlineData("proj", "", 5)]
+    [InlineData("proj", "topic", 0)]
+    [InlineData("proj", "topic", -1)]
+    public void Validator_WhenUsePubSubBufferIsTrue_FailsOnInvalidOrMissingPublisherFields(
         string projectId,
         string topicId,
-        string subId,
-        int timeout,
-        int clientCount,
-        int maxElements,
-        long maxBytes)
+        int timeout)
     {
         var options = new GooglePubSubOptions
         {
             UsePubSubBuffer = true,
+            EnableSubscriber = false,
             ProjectId = projectId,
             TopicId = topicId,
-            SubscriptionId = subId,
             PublishTimeoutSeconds = timeout,
-            SubscriberClientCount = clientCount,
-            MaxOutstandingElementCount = maxElements,
-            MaxOutstandingByteCount = maxBytes
+            // Subscriber fields may be blank when subscriber is disabled
+            SubscriptionId = "",
+            SubscriberClientCount = 0,
+            MaxOutstandingElementCount = 0,
+            MaxOutstandingByteCount = 0
         };
 
         var validator = new GooglePubSubOptionsValidator();
@@ -86,11 +83,90 @@ public class GooglePubSubOptionsAndEnvelopeTests
     }
 
     [Fact]
-    public void Validator_WhenUsePubSubBufferIsTrueAndFieldsValid_Succeeds()
+    public void Validator_WhenUsePubSubBufferIsTrueAndPublisherFieldsValid_SucceedsWithoutSubscriberFields()
     {
         var options = new GooglePubSubOptions
         {
             UsePubSubBuffer = true,
+            EnableSubscriber = false,
+            ProjectId = "my-gcp-project",
+            TopicId = "my-topic",
+            PublishTimeoutSeconds = 10,
+            SubscriptionId = "",
+            SubscriberClientCount = 0,
+            MaxOutstandingElementCount = 0,
+            MaxOutstandingByteCount = 0
+        };
+
+        var validator = new GooglePubSubOptionsValidator();
+        var result = validator.Validate(null, options);
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("", "sub", 1, 100, 20971520)]
+    [InlineData("proj", "", 1, 100, 20971520)]
+    [InlineData("proj", "sub", 0, 100, 20971520)]
+    [InlineData("proj", "sub", 1, 0, 20971520)]
+    [InlineData("proj", "sub", 1, 100, 0)]
+    public void Validator_WhenEnableSubscriberIsTrue_FailsOnInvalidOrMissingSubscriberFields(
+        string projectId,
+        string subId,
+        int clientCount,
+        int maxElements,
+        long maxBytes)
+    {
+        var options = new GooglePubSubOptions
+        {
+            UsePubSubBuffer = false,
+            EnableSubscriber = true,
+            ProjectId = projectId,
+            SubscriptionId = subId,
+            SubscriberClientCount = clientCount,
+            MaxOutstandingElementCount = maxElements,
+            MaxOutstandingByteCount = maxBytes,
+            // Publisher fields may be blank when publisher is disabled
+            TopicId = "",
+            PublishTimeoutSeconds = 0
+        };
+
+        var validator = new GooglePubSubOptionsValidator();
+        var result = validator.Validate(null, options);
+
+        result.Failed.Should().BeTrue();
+        result.FailureMessage.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void Validator_WhenEnableSubscriberIsTrueAndSubscriberFieldsValid_SucceedsWithoutPublisherFields()
+    {
+        var options = new GooglePubSubOptions
+        {
+            UsePubSubBuffer = false,
+            EnableSubscriber = true,
+            ProjectId = "my-gcp-project",
+            SubscriptionId = "my-sub",
+            SubscriberClientCount = 2,
+            MaxOutstandingElementCount = 50,
+            MaxOutstandingByteCount = 10_000_000,
+            TopicId = "",
+            PublishTimeoutSeconds = 0
+        };
+
+        var validator = new GooglePubSubOptionsValidator();
+        var result = validator.Validate(null, options);
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validator_WhenBothFlagsAreTrue_ValidatesBothPublisherAndSubscriberFields()
+    {
+        var options = new GooglePubSubOptions
+        {
+            UsePubSubBuffer = true,
+            EnableSubscriber = true,
             ProjectId = "my-gcp-project",
             TopicId = "my-topic",
             SubscriptionId = "my-sub",
