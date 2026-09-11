@@ -134,3 +134,28 @@ public interface IAdminService
     Task<RotateKeyResult> RotateWebhookKeyAsync(Guid endpointId, Guid adminUserId, string? ipAddress, CancellationToken cancellationToken = default);
     Task<PlatformSummaryDto> GetPlatformSummaryAsync(CancellationToken cancellationToken = default);
 }
+
+public enum WebhookEndpointResolutionStatus
+{
+    Success,
+    InvalidKey,
+    InactiveOrRevoked
+}
+
+public record WebhookEndpointResolutionResult(
+    WebhookEndpointResolutionStatus Status,
+    CachedWebhookEndpoint? Endpoint
+);
+
+public interface IWebhookEndpointResolver
+{
+    Task<WebhookEndpointResolutionResult> ResolveEndpointAsync(string webhookKey, CancellationToken cancellationToken = default);
+}
+
+public interface ITemplateMappingRepository
+{
+    Task<TemplateMappingExecutionResult> CreateOrEnrichMappingAsync(
+        CachedWebhookEndpoint endpoint,
+        CreateTemplateMappingRequest request,
+        CancellationToken cancellationToken = default);
+}

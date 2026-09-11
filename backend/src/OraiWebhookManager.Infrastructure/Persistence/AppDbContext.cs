@@ -15,6 +15,7 @@ public interface IAppDbContext
     DbSet<WebhookInboxItem> WebhookInboxItems { get; }
     DbSet<Message> Messages { get; }
     DbSet<MessageStatusEvent> MessageStatusEvents { get; }
+    DbSet<MessageTemplateMapping> MessageTemplateMappings { get; }
     DbSet<AuditLog> AuditLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
@@ -52,6 +53,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<WebhookInboxItem> WebhookInboxItems => Set<WebhookInboxItem>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageStatusEvent> MessageStatusEvents => Set<MessageStatusEvent>();
+    public DbSet<MessageTemplateMapping> MessageTemplateMappings => Set<MessageTemplateMapping>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -66,6 +68,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.ApplyConfiguration(new WebhookInboxItemConfiguration());
         modelBuilder.ApplyConfiguration(new MessageConfiguration());
         modelBuilder.ApplyConfiguration(new MessageStatusEventConfiguration());
+        modelBuilder.ApplyConfiguration(new MessageTemplateMappingConfiguration());
         modelBuilder.ApplyConfiguration(new AuditLogConfiguration());
 
         // Multi-tenant Global Query Filters
@@ -85,6 +88,9 @@ public class AppDbContext : DbContext, IAppDbContext
 
             modelBuilder.Entity<MessageStatusEvent>()
                 .HasQueryFilter(e => !_currentUserContext.TenantId.HasValue || e.TenantId == _currentUserContext.TenantId.Value);
+
+            modelBuilder.Entity<MessageTemplateMapping>()
+                .HasQueryFilter(m => !_currentUserContext.TenantId.HasValue || m.TenantId == _currentUserContext.TenantId.Value);
 
             modelBuilder.Entity<AuditLog>()
                 .HasQueryFilter(a => !_currentUserContext.TenantId.HasValue || a.TenantId == _currentUserContext.TenantId.Value);

@@ -7,7 +7,7 @@ public class WebhookKeyRedactionMiddleware
 {
     private readonly RequestDelegate _next;
     private static readonly Regex WebhookPathRegex = new(
-        @"^/api/webhooks/whatsapp/(whk_[a-zA-Z0-9_-]+)",
+        @"^/api/(webhooks/whatsapp|messages)/(whk_[a-zA-Z0-9_-]+)(.*)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase
     );
 
@@ -24,9 +24,11 @@ public class WebhookKeyRedactionMiddleware
             // Store sanitized path in HttpContext Items for logging / telemetry enrichment
             var sanitizedPath = WebhookPathRegex.Replace(path, m =>
             {
-                var key = m.Groups[1].Value;
+                var prefix = m.Groups[1].Value;
+                var key = m.Groups[2].Value;
+                var suffix = m.Groups[3].Value;
                 var redacted = RedactingLogger.Redact(key);
-                return $"/api/webhooks/whatsapp/{redacted}";
+                return $"/api/{prefix}/{redacted}{suffix}";
             });
             context.Items["SanitizedPath"] = sanitizedPath;
         }

@@ -15,6 +15,7 @@ public class Tenant
     public ICollection<TenantMembership> Memberships { get; set; } = new List<TenantMembership>();
     public ICollection<WebhookEndpoint> WebhookEndpoints { get; set; } = new List<WebhookEndpoint>();
     public ICollection<Message> Messages { get; set; } = new List<Message>();
+    public ICollection<MessageTemplateMapping> TemplateMappings { get; set; } = new List<MessageTemplateMapping>();
 }
 
 public class User

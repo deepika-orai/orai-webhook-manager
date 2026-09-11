@@ -292,3 +292,46 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.HasIndex(a => new { a.TenantId, a.CreatedAt }).HasDatabaseName("ix_audit_logs_tenant_created");
     }
 }
+
+public class MessageTemplateMappingConfiguration : IEntityTypeConfiguration<MessageTemplateMapping>
+{
+    public void Configure(EntityTypeBuilder<MessageTemplateMapping> builder)
+    {
+        builder.ToTable("message_template_mappings");
+
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).HasColumnName("id");
+        builder.Property(m => m.TenantId).HasColumnName("tenant_id").IsRequired();
+        builder.Property(m => m.EndpointId).HasColumnName("endpoint_id").IsRequired();
+        builder.Property(m => m.Wamid).HasColumnName("wamid").HasMaxLength(255).IsRequired();
+        builder.Property(m => m.RecipientId).HasColumnName("recipient_id").HasMaxLength(64).IsRequired();
+        builder.Property(m => m.TemplateName).HasColumnName("template_name").HasMaxLength(128).IsRequired();
+        builder.Property(m => m.TemplateNamespace).HasColumnName("template_namespace").HasMaxLength(128);
+        builder.Property(m => m.TemplateLanguage).HasColumnName("template_language").HasMaxLength(32).IsRequired();
+        builder.Property(m => m.SentAt).HasColumnName("sent_at").IsRequired();
+        builder.Property(m => m.BroadcastId).HasColumnName("broadcast_id").HasMaxLength(128);
+        builder.Property(m => m.BroadcastName).HasColumnName("broadcast_name").HasMaxLength(255);
+        builder.Property(m => m.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(m => m.UpdatedAt).HasColumnName("updated_at").IsRequired();
+
+        builder.HasIndex(m => new { m.TenantId, m.Wamid })
+            .IsUnique()
+            .HasDatabaseName("ix_template_mappings_tenant_wamid");
+
+        builder.HasIndex(m => new { m.EndpointId, m.CreatedAt })
+            .HasDatabaseName("ix_template_mappings_endpoint_created");
+
+        builder.HasIndex(m => new { m.TenantId, m.CreatedAt })
+            .HasDatabaseName("ix_template_mappings_tenant_created");
+
+        builder.HasOne(m => m.Tenant)
+            .WithMany(t => t.TemplateMappings)
+            .HasForeignKey(m => m.TenantId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(m => m.Endpoint)
+            .WithMany(e => e.TemplateMappings)
+            .HasForeignKey(m => m.EndpointId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}

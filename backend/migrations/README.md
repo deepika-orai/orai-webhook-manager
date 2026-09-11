@@ -47,6 +47,9 @@ backend/
 
 - `001_phase2_postgresql_foundation.sql`: Core multi-tenant foundation (tenants, users, tenant_memberships, webhook_endpoints, webhook_inbox, messages, message_status_events, audit_logs).
 - `002_auth_super_admin_onboarding.sql`: Phase 4 Authentication, auth_version, must_change_password column, Super Admin and client onboarding foundation.
+- `003_phase1_webhook_inbox_failed_retry_index.sql`: Index for webhook_inbox failed retry queue polling.
+- `004_add_pubsub_message_id_to_inbox.sql`: Nullable pubsub_message_id and unique partial index on webhook_inbox.
+- `005_add_message_template_mappings.sql`: Template mapping table (`message_template_mappings`) with unique constraint on `(endpoint_id, wamid)` for template metadata correlation.
 
 ---
 

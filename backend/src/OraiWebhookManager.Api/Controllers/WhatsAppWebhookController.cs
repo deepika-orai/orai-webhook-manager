@@ -16,32 +16,39 @@ namespace OraiWebhookManager.Api.Controllers;
 [Route("api/webhooks/whatsapp")]
 public class WhatsAppWebhookController : ControllerBase
 {
-    private readonly IWebhookKeyService _keyService;
+    private readonly IWebhookEndpointResolver _endpointResolver;
     private readonly IWebhookInboxRepository _inboxRepository;
     private readonly IWebhookBufferPublisher _bufferPublisher;
-    private readonly IMemoryCache _memoryCache;
-    private readonly WebhookIngestionOptions _options;
     private readonly GooglePubSubOptions _pubSubOptions;
     private readonly ILogger<WhatsAppWebhookController> _logger;
 
     private static readonly HashSet<string> AllowlistedHeaders = WebhookHeaderSanitizer.DirectIngestionAllowlistedHeaders;
 
+    [ActivatorUtilitiesConstructor]
+    public WhatsAppWebhookController(
+        IWebhookEndpointResolver endpointResolver,
+        IWebhookInboxRepository inboxRepository,
+        IWebhookBufferPublisher bufferPublisher,
+        IOptions<GooglePubSubOptions> pubSubOptions,
+        ILogger<WhatsAppWebhookController> logger)
+    {
+        _endpointResolver = endpointResolver;
+        _inboxRepository = inboxRepository;
+        _bufferPublisher = bufferPublisher;
+        _pubSubOptions = pubSubOptions.Value;
+        _logger = logger;
+    }
+
     public WhatsAppWebhookController(
         IWebhookKeyService keyService,
         IWebhookInboxRepository inboxRepository,
         IWebhookBufferPublisher bufferPublisher,
-        IMemoryCache memoryCache,
+        Microsoft.Extensions.Caching.Memory.IMemoryCache memoryCache,
         IOptions<WebhookIngestionOptions> options,
         IOptions<GooglePubSubOptions> pubSubOptions,
         ILogger<WhatsAppWebhookController> logger)
+        : this(new OraiWebhookManager.Infrastructure.Services.WebhookEndpointResolver(keyService, inboxRepository, memoryCache, options), inboxRepository, bufferPublisher, pubSubOptions, logger)
     {
-        _keyService = keyService;
-        _inboxRepository = inboxRepository;
-        _bufferPublisher = bufferPublisher;
-        _memoryCache = memoryCache;
-        _options = options.Value;
-        _pubSubOptions = pubSubOptions.Value;
-        _logger = logger;
     }
 
     [HttpPost("{webhookKey}")]
@@ -50,28 +57,18 @@ public class WhatsAppWebhookController : ControllerBase
         [FromRoute] string webhookKey,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(webhookKey))
+        var resolution = await _endpointResolver.ResolveEndpointAsync(webhookKey, cancellationToken);
+        if (resolution.Status == WebhookEndpointResolutionStatus.InvalidKey)
         {
             return Unauthorized(new { error = "Invalid webhook key format." });
         }
 
-        // Compute SHA-256 hash as bytea
-        var keyHash = _keyService.ComputeKeyHash(webhookKey);
-        var cacheKey = $"whk_endpoint_{Convert.ToHexString(keyHash)}";
-
-        if (!_memoryCache.TryGetValue(cacheKey, out CachedWebhookEndpoint? endpoint))
-        {
-            endpoint = await _inboxRepository.GetEndpointByHashAsync(keyHash, cancellationToken);
-            if (endpoint != null)
-            {
-                _memoryCache.Set(cacheKey, endpoint, TimeSpan.FromSeconds(_options.CacheTtlSeconds));
-            }
-        }
-
-        if (endpoint == null || endpoint.Status != WebhookEndpointStatus.Active)
+        if (resolution.Status == WebhookEndpointResolutionStatus.InactiveOrRevoked || resolution.Endpoint == null)
         {
             return Unauthorized(new { error = "Webhook endpoint is invalid, inactive, or revoked." });
         }
+
+        var endpoint = resolution.Endpoint;
 
         // Read raw body
         using var reader = new StreamReader(Request.Body, Encoding.UTF8);

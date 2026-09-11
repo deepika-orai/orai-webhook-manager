@@ -67,6 +67,8 @@ public static class DependencyInjection
         services.AddScoped<IWebhookInboxRepository, WebhookInboxRepository>();
         services.AddScoped<IWebhookProcessorRepository, WebhookProcessorRepository>();
         services.AddScoped<IDashboardRepository, DashboardRepository>();
+        services.AddScoped<ITemplateMappingRepository, TemplateMappingRepository>();
+        services.AddScoped<IWebhookEndpointResolver, WebhookEndpointResolver>();
         services.AddSingleton<ICacheInvalidator, CacheInvalidationService>();
 
         // Google Cloud Pub/Sub Buffer Services (Publisher)

@@ -19,6 +19,7 @@ public class WebhookEndpoint
     public Tenant? Tenant { get; set; }
     public ICollection<WebhookInboxItem> InboxItems { get; set; } = new List<WebhookInboxItem>();
     public ICollection<Message> Messages { get; set; } = new List<Message>();
+    public ICollection<MessageTemplateMapping> TemplateMappings { get; set; } = new List<MessageTemplateMapping>();
 }
 
 public class WebhookInboxItem
@@ -123,4 +124,25 @@ public class AuditLog
     public string? NewValues { get; set; }
     public string? IpAddress { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public class MessageTemplateMapping
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid EndpointId { get; set; }
+    public string Wamid { get; set; } = string.Empty;
+    public string RecipientId { get; set; } = string.Empty;
+    public string TemplateName { get; set; } = string.Empty;
+    public string? TemplateNamespace { get; set; }
+    public string TemplateLanguage { get; set; } = string.Empty;
+    public DateTimeOffset SentAt { get; set; }
+    public string? BroadcastId { get; set; }
+    public string? BroadcastName { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    // Navigation properties
+    public Tenant? Tenant { get; set; }
+    public WebhookEndpoint? Endpoint { get; set; }
 }

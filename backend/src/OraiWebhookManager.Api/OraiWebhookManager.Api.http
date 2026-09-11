@@ -1,6 +1,37 @@
 @OraiWebhookManager.Api_HostAddress = http://localhost:5135
+@WebhookKey = whk_live_samplekey00000000000000000000000000000000
 
-GET {{OraiWebhookManager.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### 1. Register Template Mapping (POST)
+POST {{OraiWebhookManager.Api_HostAddress}}/api/messages/{{WebhookKey}}/mappings
+Content-Type: application/json
+
+{
+  "wamid": "wamid.HBgMOTE5NjQ0MzkxMjQxFQIAERgSRUVDMTYxMkY1MzJBQUNGOEVDAA==",
+  "recipientId": "919644391241",
+  "template": {
+    "name": "opd_visit",
+    "namespace": "24d14f8f_dd39_4d1d_8795_b55eb3d249c7",
+    "language": "en"
+  },
+  "sentAt": "2026-09-09T12:45:30Z",
+  "broadcast": {
+    "externalId": "BROADCAST_001",
+    "name": "OPD Campaign"
+  }
+}
+
+### 2. Register Template Mapping without Broadcast (Minimal)
+POST {{OraiWebhookManager.Api_HostAddress}}/api/messages/{{WebhookKey}}/mappings
+Content-Type: application/json
+
+{
+  "wamid": "wamid.HBgMOTE5NjQ0MzkxMjQxFQIAERgSRUVDMTYxMkY1MzJBQUNGOEVDAA==",
+  "recipientId": "+919644391241",
+  "template": {
+    "name": "appointment_reminder",
+    "language": "en_US"
+  },
+  "sentAt": "2026-09-09T12:45:30Z"
+}
 
 ###
