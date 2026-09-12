@@ -159,3 +159,11 @@ body {
     animation: none !important;
   }
 }
+
+/* Suppress Microsoft Edge native password reveal/clear controls exclusively for custom toggle input */
+.password-visibility-input::-ms-reveal,
+.password-visibility-input::-ms-clear {
+  display: none;
+  width: 0;
+  height: 0;
+}

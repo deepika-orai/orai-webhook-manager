@@ -23,19 +23,27 @@ describe("Shared Login Page & Password Visibility Toggle", () => {
     window.sessionStorage.clear();
   });
 
-  it("renders password input as hidden type='password' initially with accessible label", () => {
+  it("renders password input as hidden type='password' initially with accessible label and Edge suppression class", () => {
     render(<LoginPage />);
 
     const passwordInput = screen.getByLabelText(/^Password/i);
     expect(passwordInput).toBeInTheDocument();
     expect(passwordInput).toHaveAttribute("type", "password");
     expect(passwordInput).toHaveAttribute("autoComplete", "current-password");
+    expect(passwordInput).toHaveClass("password-visibility-input");
 
     const toggleBtn = screen.getByRole("button", { name: "Show password" });
     expect(toggleBtn).toBeInTheDocument();
     expect(toggleBtn).toHaveAttribute("type", "button");
     expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
     expect(toggleBtn).toHaveAttribute("title", "Show password");
+  });
+
+  it("applies the password-visibility-input class to suppress Microsoft Edge native password reveal and clear controls", () => {
+    render(<LoginPage />);
+
+    const passwordInput = screen.getByLabelText(/^Password/i);
+    expect(passwordInput.className).toContain("password-visibility-input");
   });
 
   it("toggles password input type to 'text' and label to 'Hide password' upon click", () => {
