@@ -154,7 +154,7 @@ describe("Login Flow Splash Marker Management", () => {
     fireEvent.change(screen.getByLabelText(/email address/i), {
       target: { value: "tenant@acme.com" },
     });
-    fireEvent.change(screen.getByLabelText(/password/i), {
+    fireEvent.change(screen.getByLabelText(/^password/i), {
       target: { value: "SecurePass123!" },
     });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
@@ -194,7 +194,7 @@ describe("Login Flow Splash Marker Management", () => {
     fireEvent.change(screen.getByLabelText(/email address/i), {
       target: { value: "admin@orai.internal" },
     });
-    fireEvent.change(screen.getByLabelText(/password/i), {
+    fireEvent.change(screen.getByLabelText(/^password/i), {
       target: { value: "AdminSecret123!" },
     });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
@@ -236,7 +236,7 @@ describe("Login Flow Splash Marker Management", () => {
     fireEvent.change(screen.getByLabelText(/email address/i), {
       target: { value: "temp@acme.com" },
     });
-    fireEvent.change(screen.getByLabelText(/password/i), {
+    fireEvent.change(screen.getByLabelText(/^password/i), {
       target: { value: "TempPass123!" },
     });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
