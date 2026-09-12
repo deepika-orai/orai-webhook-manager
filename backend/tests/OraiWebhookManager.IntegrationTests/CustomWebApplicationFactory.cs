@@ -39,11 +39,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
             services.AddScoped<IPlatformAdminDbContext>(sp => sp.GetRequiredService<PlatformAdminDbContext>());
 
-            // Remove background WebhookProcessingWorker from WebApplicationFactory HTTP test host
-            // (Worker polling is tested in dedicated repository integration tests with isolated schema)
+            // Remove background workers (WebhookProcessingWorker, WebhookPubSubConsumerWorker) from WebApplicationFactory HTTP test host
+            // (Worker polling and consumers are tested in dedicated unit and repository integration tests with isolated schema)
             var workerDescriptors = services.Where(d =>
                 d.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService) &&
-                d.ImplementationType == typeof(OraiWebhookManager.Infrastructure.Workers.WebhookProcessingWorker)
+                (d.ImplementationType == typeof(OraiWebhookManager.Infrastructure.Workers.WebhookProcessingWorker) ||
+                 d.ImplementationType == typeof(OraiWebhookManager.Infrastructure.Workers.WebhookPubSubConsumerWorker))
             ).ToList();
 
             foreach (var d in workerDescriptors)
