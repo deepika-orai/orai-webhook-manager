@@ -160,6 +160,11 @@ export default function SuperAdminPage() {
           router.replace("/dashboard");
           return;
         }
+        try {
+          sessionStorage.removeItem("orai_welcome_splash_pending");
+        } catch {
+          // Storage access error or disabled
+        }
         setSession(sess);
         setIsAuthorized(true);
         setAuthChecking(false);

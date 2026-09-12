@@ -25,6 +25,13 @@ function ProtectedLayoutInternal({
 
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const isSplashPending = typeof window !== "undefined" && (() => {
+    try {
+      return window.sessionStorage.getItem("orai_welcome_splash_pending") === "1";
+    } catch {
+      return false;
+    }
+  })();
 
   useEffect(() => {
     let ignore = false;
@@ -35,6 +42,11 @@ function ProtectedLayoutInternal({
         if (ignore) return;
 
         if (!session || !session.user) {
+          try {
+            sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
           const isDemo = !!process.env.NEXT_PUBLIC_DEMO_TENANT_ID;
           if (isDemo && process.env.NODE_ENV === "development") {
             setIsAuthorized(true);
@@ -46,17 +58,32 @@ function ProtectedLayoutInternal({
         }
 
         if (session.user.mustChangePassword) {
+          try {
+            sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
           router.replace("/change-password");
           return;
         }
 
         if (requirePlatformAdmin && !session.user.isPlatformAdmin) {
+          try {
+            sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
           router.replace("/dashboard");
           return;
         }
 
         // Platform admin navigating to dashboard without inspecting a tenant should go to /admin
         if (!requirePlatformAdmin && session.user.isPlatformAdmin && !inspectTenantId && !session.tenant) {
+          try {
+            sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
           router.replace("/admin");
           return;
         }
@@ -65,6 +92,11 @@ function ProtectedLayoutInternal({
         setAuthChecking(false);
       } catch {
         if (ignore) return;
+        try {
+          sessionStorage.removeItem("orai_welcome_splash_pending");
+        } catch {
+          // Storage access error or disabled
+        }
         const isDemo = !!process.env.NEXT_PUBLIC_DEMO_TENANT_ID;
         if (isDemo && process.env.NODE_ENV === "development") {
           setIsAuthorized(true);
@@ -83,6 +115,9 @@ function ProtectedLayoutInternal({
   }, [router, requirePlatformAdmin, inspectTenantId]);
 
   if (authChecking || !isAuthorized) {
+    if (isSplashPending) {
+      return <div className="min-h-screen bg-[#F8F9FD] dark:bg-[#0B0F19]" aria-hidden="true" />;
+    }
     return (
       <OraiLoadingScene
         title={loadingTitle}

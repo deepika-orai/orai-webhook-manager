@@ -31,13 +31,41 @@ function LoginForm() {
       const res = await loginApi(email, password);
 
       if (res.mustChangePassword) {
+        if (typeof window !== "undefined") {
+          try {
+            window.sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
+        }
         router.push("/change-password");
       } else if (res.user.isPlatformAdmin) {
+        if (typeof window !== "undefined") {
+          try {
+            window.sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
+        }
         router.push("/admin");
       } else {
+        if (typeof window !== "undefined") {
+          try {
+            window.sessionStorage.setItem("orai_welcome_splash_pending", "1");
+          } catch {
+            // Storage access error or disabled
+          }
+        }
         router.push("/dashboard");
       }
     } catch (err) {
+      if (typeof window !== "undefined") {
+        try {
+          window.sessionStorage.removeItem("orai_welcome_splash_pending");
+        } catch {
+          // Storage access error or disabled
+        }
+      }
       setError(err instanceof Error ? err.message : "Invalid email or password");
     } finally {
       setLoading(false);

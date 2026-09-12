@@ -25,6 +25,7 @@ import { MessagesTable } from "../../components/MessagesTable";
 import { MessageDetailModal } from "../../components/MessageDetailModal";
 import { ErrorState } from "../../components/EmptyAndErrorStates";
 import { OraiLoadingScene } from "../../components/OraiLoadingScene";
+import { WelcomeSplash } from "../../components/WelcomeSplash";
 
 function DashboardContent() {
   const router = useRouter();
@@ -35,6 +36,17 @@ function DashboardContent() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
+
+  // Welcome splash state
+  const [splashState, setSplashState] = useState<"none" | "pending_auth" | "showing" | "completed">(() => {
+    if (typeof window === "undefined") return "none";
+    try {
+      return window.sessionStorage.getItem("orai_welcome_splash_pending") === "1" ? "pending_auth" : "none";
+    } catch {
+      return "none";
+    }
+  });
+  const [splashTenantName, setSplashTenantName] = useState<string>("");
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
@@ -68,6 +80,12 @@ function DashboardContent() {
         const sess = await getCurrentSessionApi();
         if (ignore) return;
         if (!sess || !sess.user) {
+          try {
+            sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
+          setSplashState("none");
           const isDemo = !!process.env.NEXT_PUBLIC_DEMO_TENANT_ID;
           if (isDemo && process.env.NODE_ENV === "development") {
             setIsAuthorized(true);
@@ -79,11 +97,23 @@ function DashboardContent() {
         }
 
         if (sess.user.mustChangePassword) {
+          try {
+            sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
+          setSplashState("none");
           router.replace("/change-password");
           return;
         }
 
         if (sess.user.isPlatformAdmin && !inspectTenantId && !sess.tenant) {
+          try {
+            sessionStorage.removeItem("orai_welcome_splash_pending");
+          } catch {
+            // Storage access error or disabled
+          }
+          setSplashState("none");
           router.replace("/admin");
           return;
         }
@@ -91,8 +121,34 @@ function DashboardContent() {
         setSession(sess);
         setIsAuthorized(true);
         setAuthChecking(false);
+
+        // Consume one-time splash flag only after confirming a genuine tenant session without inspection mode
+        let hasPendingSplash = false;
+        try {
+          hasPendingSplash = sessionStorage.getItem("orai_welcome_splash_pending") === "1";
+          sessionStorage.removeItem("orai_welcome_splash_pending");
+        } catch {
+          hasPendingSplash = false;
+        }
+
+        if (hasPendingSplash && !sess.user.isPlatformAdmin && !inspectTenantId && sess.tenant) {
+          const resolvedName =
+            (sess.tenant.name && sess.tenant.name.trim()) ||
+            (sess.user.fullName && sess.user.fullName.trim()) ||
+            "Partner";
+          setSplashTenantName(resolvedName);
+          setSplashState("showing");
+        } else {
+          setSplashState("none");
+        }
       } catch {
         if (ignore) return;
+        try {
+          sessionStorage.removeItem("orai_welcome_splash_pending");
+        } catch {
+          // Storage access error or disabled
+        }
+        setSplashState("none");
         const isDemo = !!process.env.NEXT_PUBLIC_DEMO_TENANT_ID;
         if (isDemo && process.env.NODE_ENV === "development") {
           setIsAuthorized(true);
@@ -190,6 +246,9 @@ function DashboardContent() {
   };
 
   if (authChecking || !isAuthorized) {
+    if (splashState === "pending_auth") {
+      return <div className="min-h-screen bg-[#F8F9FD] dark:bg-[#0B0F19]" aria-hidden="true" />;
+    }
     return (
       <OraiLoadingScene
         title="ORAI Webhook Manager"
@@ -203,6 +262,14 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FD] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 flex flex-col font-sans relative transition-colors duration-150">
+      {/* Welcome Splash Screen Overlay (exclusively on genuine tenant login) */}
+      {splashState === "showing" && (
+        <WelcomeSplash
+          tenantName={splashTenantName}
+          onComplete={() => setSplashState("completed")}
+        />
+      )}
+
       {/* Subtle background grid pattern */}
       <div
         aria-hidden="true"

@@ -76,6 +76,7 @@ export function clearAuthMarker(): void {
   try {
     window.localStorage.removeItem(AUTH_MARKER_KEY);
     window.sessionStorage.removeItem(AUTH_MARKER_KEY);
+    window.sessionStorage.removeItem("orai_welcome_splash_pending");
   } catch {
     // Storage access error or disabled
   }
