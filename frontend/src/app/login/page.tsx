@@ -4,6 +4,7 @@ import React, { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loginApi } from "../../lib/api";
 import { ThemeSelector } from "../../components/ThemeSelector";
+import { OraiLogo } from "../../components/OraiLogo";
 
 function LoginForm() {
   const router = useRouter();
@@ -74,57 +75,33 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FD] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden transition-colors duration-150">
+    <div className="relative isolate w-full min-w-0 min-h-screen bg-[#F8F9FD] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 overflow-hidden transition-colors duration-150">
       {/* Top Controls: Theme Selector */}
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
         <ThemeSelector variant="compact" />
       </div>
 
-      {/* Decorative ambient background blur strictly behind content */}
-      <div
-        aria-hidden="true"
-        className="fixed inset-0 bg-grid-pattern dark:bg-grid-pattern-dark opacity-30 pointer-events-none -z-10"
-      />
-      <div
-        aria-hidden="true"
-        className="fixed top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-gradient-to-br from-purple-600/15 via-indigo-600/10 to-cyan-500/10 rounded-full blur-3xl pointer-events-none animate-ambient-drift -z-10"
-      />
-      <div
-        aria-hidden="true"
-        className="fixed -bottom-20 -left-20 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none -z-10"
-      />
-      <div
-        aria-hidden="true"
-        className="fixed -top-20 -right-20 w-80 h-80 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none -z-10"
-      />
+      {/* Decorative ambient background blur strictly contained behind content */}
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute inset-0 bg-grid-pattern dark:bg-grid-pattern-dark opacity-30" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-gradient-to-br from-purple-600/15 via-indigo-600/10 to-cyan-500/10 rounded-full blur-3xl animate-ambient-drift" />
+        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl" />
+        <div className="absolute -top-20 -right-20 w-80 h-80 bg-cyan-600/10 rounded-full blur-3xl" />
+      </div>
 
       {/* Main Login Card */}
-      <div className="w-full max-w-md bg-white/95 dark:bg-slate-900/80 border border-purple-100/80 dark:border-slate-800/90 backdrop-blur-2xl rounded-3xl p-8 sm:p-9 shadow-xl dark:shadow-2xl relative z-10 animate-card-enter">
+      <div className="w-full max-w-md min-w-0 bg-white/95 dark:bg-slate-900/80 border border-purple-100/80 dark:border-slate-800/90 backdrop-blur-2xl rounded-3xl p-6 sm:p-9 shadow-xl dark:shadow-2xl relative z-10 animate-card-enter">
         {/* Logo / Header */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="relative mb-3.5">
-            <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-600/30 border border-purple-500/30">
-              <svg
-                className="w-7 h-7 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                strokeWidth={2.2}
-                aria-hidden="true"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            {/* Subtle glow badge */}
-            <div
-              aria-hidden="true"
-              className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-purple-600 to-cyan-500 opacity-20 blur-sm pointer-events-none"
+          <div className="mb-3.5 flex justify-center items-center">
+            <OraiLogo
+              imageClassName="w-[155px] sm:w-[180px] h-auto"
+              priority
             />
           </div>
 
-          <div className="inline-flex items-center gap-2 mb-1.5">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">ORAI</h1>
-            <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-purple-500/15 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+          <div className="inline-flex items-center gap-2 mb-2">
+            <span className="px-3 py-0.5 text-xs font-semibold rounded-full bg-purple-500/15 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30">
               Webhook Manager
             </span>
           </div>
@@ -328,7 +305,7 @@ function LoginForm() {
 
         {/* Security and Trust Footer */}
         <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800/80 text-center space-y-2">
-          <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1.5 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Tenant-isolated access

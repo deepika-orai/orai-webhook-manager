@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useTheme } from "./ThemeProvider";
+import { OraiLogo } from "./OraiLogo";
 
 interface OraiLoadingSceneProps {
   title?: string;
@@ -50,30 +51,10 @@ export function OraiLoadingScene({
         />
 
         {/* ORAI Logo Emblem */}
-        <div className="relative mb-6">
-          <div
-            className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform ${
-              isDark
-                ? "bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 shadow-purple-900/30 border border-purple-500/30"
-                : "bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-500 shadow-purple-500/20 border border-purple-200"
-            }`}
-          >
-            <svg
-              className="w-7 h-7 text-white animate-pulse"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              strokeWidth={2.2}
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          {/* Subtle spinning outer orbit ring */}
-          <div
-            aria-hidden="true"
-            className="absolute -inset-1.5 rounded-[20px] border border-purple-500/30 border-t-purple-400 animate-spin pointer-events-none"
-            style={{ animationDuration: "3s" }}
+        <div className="mb-5 flex justify-center items-center">
+          <OraiLogo
+            imageClassName="w-[130px] sm:w-[140px] h-auto"
+            priority
           />
         </div>
 

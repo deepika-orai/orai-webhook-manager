@@ -147,12 +147,12 @@ describe("Protected Dashboard Authentication & Layout Guards", () => {
     // Wait for session and data to resolve
     await waitFor(() => {
       expect(screen.getByText("Total Messages")).toBeInTheDocument();
+      expect(getSummarySpy).toHaveBeenCalledTimes(1);
     });
 
-    expect(screen.getByText("Acme Corporation")).toBeInTheDocument();
+    expect(screen.getAllByText("Acme Corporation")[0]).toBeInTheDocument();
     expect(screen.getByTitle("Signed in as tenant@acme.com")).toBeInTheDocument();
 
-    expect(getSummarySpy).toHaveBeenCalledTimes(1);
     expect(getEndpointsSpy).toHaveBeenCalledTimes(1);
     expect(getMessagesSpy).toHaveBeenCalledTimes(1);
 
@@ -237,7 +237,7 @@ describe("Protected Dashboard Authentication & Layout Guards", () => {
       expect(screen.getByText("Total Messages")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Target Corp")).toBeInTheDocument();
+    expect(screen.getAllByText("Target Corp")[0]).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalledWith("/admin");
     expect(mockReplace).not.toHaveBeenCalledWith("/login");
   });

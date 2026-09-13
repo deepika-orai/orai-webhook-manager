@@ -24,6 +24,7 @@ import {
 } from "../../lib/api";
 import { OraiLoadingScene } from "../../components/OraiLoadingScene";
 import { ThemeSelector } from "../../components/ThemeSelector";
+import { OraiLogo } from "../../components/OraiLogo";
 import { formatTenantRole, formatWebhookEndpointStatus } from "../../lib/enumFormatters";
 
 export default function SuperAdminPage() {
@@ -289,21 +290,20 @@ export default function SuperAdminPage() {
       />
 
       {/* Top Navbar */}
-      <header className="border-b border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl sticky top-0 z-30 px-4 sm:px-6 py-4 flex items-center justify-between shadow-xs dark:shadow-xl transition-colors duration-150">
-        <div className="flex items-center gap-3.5 shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-600/25 border border-purple-500/30">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
+      <header className="border-b border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl sticky top-0 z-30 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3 shadow-xs dark:shadow-xl transition-colors duration-150">
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          <OraiLogo
+            imageClassName="w-[95px] sm:w-[110px] md:w-[120px] h-auto"
+            priority
+          />
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">ORAI Super Admin</h1>
+              <h1 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">ORAI Super Admin</h1>
               <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-purple-500/15 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30">
                 Platform Admin
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Multi-tenant cluster & client management</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">Multi-tenant cluster & client management</p>
           </div>
         </div>
 
@@ -315,7 +315,7 @@ export default function SuperAdminPage() {
           </div>
           <button
             onClick={handleLogout}
-            className="px-3 sm:px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/90 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700/80 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shadow-xs"
+            className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/90 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700/80 transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shadow-xs whitespace-nowrap"
           >
             <svg className="w-4 h-4 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
