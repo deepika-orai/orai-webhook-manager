@@ -6,29 +6,37 @@ import { Header } from "../components/Header";
 import { ThemeProvider } from "../components/ThemeProvider";
 
 describe("OraiLogo Component", () => {
-  it("renders light and dark logo assets with single accessible semantic naming", () => {
+  it("renders light and dark logo assets with single accessible semantic naming on wrapper", () => {
     render(<OraiLogo />);
 
-    // Screen reader accessible alt name exists only once
-    const accessibleImages = screen.getAllByRole("img", { name: "ORAI Conversational AI Platform" });
-    expect(accessibleImages).toHaveLength(1);
+    // Screen reader accessible alt name exists only once on the wrapper element
+    const accessibleLogos = screen.getAllByRole("img", { name: "ORAI Conversational AI Platform" });
+    expect(accessibleLogos).toHaveLength(1);
 
-    // Verify both images exist in DOM with proper theme classes
-    const lightImg = accessibleImages[0];
-    expect(lightImg).toHaveAttribute("src", expect.stringContaining("orai-logo-light.png"));
-    expect(lightImg.className).toContain("block");
-    expect(lightImg.className).toContain("dark:hidden");
+    const logoWrapper = accessibleLogos[0];
+    expect(logoWrapper).toHaveAttribute("role", "img");
+    expect(logoWrapper).toHaveAttribute("aria-label", "ORAI Conversational AI Platform");
 
-    // Decorative dark image has aria-hidden="true" or empty alt
+    // Verify both internal images exist in DOM with proper theme classes, empty alt text, and aria-hidden
     const allImgs = document.querySelectorAll("img");
+    expect(allImgs).toHaveLength(2);
+
+    const lightImg = Array.from(allImgs).find((img) => img.getAttribute("src")?.includes("orai-logo-light.png"));
+    expect(lightImg).toBeDefined();
+    expect(lightImg?.getAttribute("alt")).toBe("");
+    expect(lightImg?.getAttribute("aria-hidden")).toBe("true");
+    expect(lightImg?.className).toContain("block");
+    expect(lightImg?.className).toContain("dark:hidden");
+
     const darkImg = Array.from(allImgs).find((img) => img.getAttribute("src")?.includes("orai-logo-dark.png"));
     expect(darkImg).toBeDefined();
+    expect(darkImg?.getAttribute("alt")).toBe("");
     expect(darkImg?.getAttribute("aria-hidden")).toBe("true");
     expect(darkImg?.className).toContain("hidden");
     expect(darkImg?.className).toContain("dark:block");
   });
 
-  it("applies custom styling, alt text, and priority loading props correctly", () => {
+  it("applies custom styling, custom alt text, and priority loading props correctly", () => {
     render(
       <OraiLogo
         className="custom-logo-container"
@@ -38,19 +46,24 @@ describe("OraiLogo Component", () => {
       />
     );
 
+    // Custom alt updates wrapper accessible name and exactly one role="img" exists
+    const accessibleLogos = screen.getAllByRole("img", { name: "Custom Brand Alt" });
+    expect(accessibleLogos).toHaveLength(1);
+
     const container = document.querySelector(".custom-logo-container");
     expect(container).toBeInTheDocument();
     expect(container?.className).toContain("max-w-full");
-
-    const lightImg = screen.getByRole("img", { name: "Custom Brand Alt" });
-    expect(lightImg).toBeInTheDocument();
-    expect(lightImg.className).toContain("w-[180px]");
-    expect(lightImg.className).toContain("max-w-full");
+    expect(container).toHaveAttribute("aria-label", "Custom Brand Alt");
 
     const allImgs = document.querySelectorAll("img");
-    const darkImg = Array.from(allImgs).find((img) => img.getAttribute("src")?.includes("orai-logo-dark.png"));
-    expect(darkImg?.className).toContain("w-[180px]");
-    expect(darkImg?.className).toContain("max-w-full");
+    expect(allImgs).toHaveLength(2);
+
+    allImgs.forEach((img) => {
+      expect(img.getAttribute("alt")).toBe("");
+      expect(img.getAttribute("aria-hidden")).toBe("true");
+      expect(img.className).toContain("w-[180px]");
+      expect(img.className).toContain("max-w-full");
+    });
   });
 });
 

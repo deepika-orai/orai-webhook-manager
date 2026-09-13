@@ -27,15 +27,51 @@ describe("ORAI WelcomeSplash Component & Lifecycle", () => {
     localStorage.clear();
   });
 
-  it("renders official ORAI branding, headings, and tenant name cleanly", () => {
+  it("renders official theme-aware ORAI branding, headings, and tenant name cleanly", () => {
     render(<WelcomeSplash tenantName="Acme Robotics" />);
 
     expect(screen.getByRole("status")).toBeInTheDocument();
-    expect(screen.getByAltText("ORAI Conversational AI Platform")).toBeInTheDocument();
+
+    // Accessible ORAI Logo announced only once on wrapper
+    const accessibleLogos = screen.getAllByRole("img", { name: "ORAI Conversational AI Platform" });
+    expect(accessibleLogos).toHaveLength(1);
+
+    const logoWrapper = accessibleLogos[0];
+    expect(logoWrapper).toHaveAttribute("role", "img");
+    expect(logoWrapper).toHaveAttribute("aria-label", "ORAI Conversational AI Platform");
+
+    // Verify light and dark assets are wired correctly through OraiLogo with balanced reduced sizing, empty alt, and aria-hidden
+    const allImgs = document.querySelectorAll("img");
+    expect(allImgs).toHaveLength(2);
+
+    const lightImg = Array.from(allImgs).find((img) => img.getAttribute("src")?.includes("orai-logo-light.png"));
+    expect(lightImg).toBeDefined();
+    expect(lightImg?.getAttribute("alt")).toBe("");
+    expect(lightImg?.getAttribute("aria-hidden")).toBe("true");
+    expect(lightImg?.className).toContain("block");
+    expect(lightImg?.className).toContain("dark:hidden");
+    expect(lightImg?.className).toContain("w-[165px]");
+    expect(lightImg?.className).toContain("sm:w-[190px]");
+    expect(lightImg?.className).toContain("md:w-[215px]");
+    expect(lightImg?.className).toContain("lg:w-[225px]");
+
+    const darkImg = Array.from(allImgs).find((img) => img.getAttribute("src")?.includes("orai-logo-dark.png"));
+    expect(darkImg).toBeDefined();
+    expect(darkImg?.getAttribute("alt")).toBe("");
+    expect(darkImg?.getAttribute("aria-hidden")).toBe("true");
+    expect(darkImg?.className).toContain("hidden");
+    expect(darkImg?.className).toContain("dark:block");
+    expect(darkImg?.className).toContain("w-[165px]");
+
+    // Verify old legacy logo is NEVER rendered
+    const legacyLogos = Array.from(allImgs).filter((img) => img.getAttribute("src") === "/branding/orai-logo.png");
+    expect(legacyLogos).toHaveLength(0);
+
     expect(screen.getByText("Webhook Manager")).toBeInTheDocument();
-    expect(screen.getByText("Welcome to ORAI")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Welcome to ORAI" })).toBeInTheDocument();
+    expect(screen.getByText("Hello, Acme Robotics")).toBeInTheDocument();
+    expect(screen.queryByText(/Welcome, Acme Robotics/i)).not.toBeInTheDocument();
     expect(screen.getByText("The Future of AI-Powered Customer Engagement")).toBeInTheDocument();
-    expect(screen.getByText("Welcome, Acme Robotics")).toBeInTheDocument();
     expect(screen.getByText("Preparing your dashboard…")).toBeInTheDocument();
 
     // Ensure no undefined or null appears
@@ -45,13 +81,13 @@ describe("ORAI WelcomeSplash Component & Lifecycle", () => {
 
   it("falls back to 'Partner' when tenantName is empty, whitespace, or undefined", () => {
     const { rerender } = render(<WelcomeSplash tenantName="" />);
-    expect(screen.getByText("Welcome, Partner")).toBeInTheDocument();
+    expect(screen.getByText("Hello, Partner")).toBeInTheDocument();
 
     rerender(<WelcomeSplash tenantName="   " />);
-    expect(screen.getByText("Welcome, Partner")).toBeInTheDocument();
+    expect(screen.getByText("Hello, Partner")).toBeInTheDocument();
 
     rerender(<WelcomeSplash tenantName={undefined} />);
-    expect(screen.getByText("Welcome, Partner")).toBeInTheDocument();
+    expect(screen.getByText("Hello, Partner")).toBeInTheDocument();
   });
 
   it("handles timer lifecycle and triggers onComplete after display and fade durations", () => {
@@ -308,7 +344,7 @@ describe("Dashboard Splash Integration & State Flow", () => {
 
     // Welcome splash should be displayed with real tenant name from session
     await waitFor(() => {
-      expect(screen.getByText("Welcome, Acme Enterprises")).toBeInTheDocument();
+      expect(screen.getByText("Hello, Acme Enterprises")).toBeInTheDocument();
     });
 
     expect(screen.getByText("The Future of AI-Powered Customer Engagement")).toBeInTheDocument();
@@ -366,7 +402,7 @@ describe("Dashboard Splash Integration & State Flow", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Welcome, Alexander Sterling")).toBeInTheDocument();
+      expect(screen.getByText("Hello, Alexander Sterling")).toBeInTheDocument();
     });
   });
 

@@ -83,6 +83,8 @@ describe("Protected Dashboard Authentication & Layout Guards", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
+    localStorage.clear();
     mockSearchParams = new URLSearchParams();
   });
 

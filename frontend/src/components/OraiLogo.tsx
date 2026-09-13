@@ -22,13 +22,17 @@ export function OraiLogo({
   priority = true,
   alt = "ORAI Conversational AI Platform",
 }: OraiLogoProps) {
-
   return (
-    <div className={`relative inline-flex items-center max-w-full select-none ${className}`}>
+    <div
+      role="img"
+      aria-label={alt}
+      className={`relative inline-flex items-center max-w-full select-none ${className}`}
+    >
       {/* Light Theme Logo: visible when html does not have .dark */}
       <Image
         src="/branding/orai-logo-light.png"
-        alt={alt}
+        alt=""
+        aria-hidden="true"
         width={1400}
         height={490}
         priority={priority}
